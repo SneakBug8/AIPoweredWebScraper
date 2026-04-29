@@ -123,7 +123,7 @@ async function ConvertAllToMd(message: MessageWrapper) {
 
 //US6 Scraper uses AI to extract key fields from the scraped pages
 
-async function ExtractFields(content: string) {
+async function ExtractFields(filename: string, content: string, model = 'openai/gpt-oss-20b') {
   const messages = [
     { role: 'system', content: "Extract fields from the car sale posting. Take price in EUR." },
     { role: 'user', content: content },
@@ -132,7 +132,7 @@ async function ExtractFields(content: string) {
   //US6AC1 Scraper extracts car brand, model, production year, mileage, and price
   const chatCompletion = await GroqAPI.chat.completions.create({
     messages: messages as any,
-    model: 'openai/gpt-oss-20b',
+    model: model,
     response_format: {
       "type": "json_schema",
       "json_schema": {
@@ -164,7 +164,7 @@ async function ExtractFields(content: string) {
 
     if (!fields.is_single_car_page)
       return;
-
+    
     //US6AC3 Scraper inserts new postings it found in the DB
     //US6AC4 Scraper updates postings coming from the same source
     const existing_record = await CarPostingRecordRepository.GetWithSource(filename);
@@ -179,16 +179,17 @@ async function ExtractFields(content: string) {
       await CarPostingRecordRepository.Update(existing_record);
     }
     else {
-    const posting = new CarPostingRecord();
-    posting.car_brand = fields?.car_brand;
-    posting.model = fields?.model;
-    posting.year_of_production = fields?.year_of_production;
-    posting.mileage = fields?.mileage;
-    posting.price = fields?.price;
-    //US6AC2 Scraper adds shop that the posting was found from
-    posting.shop = "kentavar.bg";
+      const posting = new CarPostingRecord();
+      posting.car_brand = fields?.car_brand;
+      posting.model = fields?.model;
+      posting.year_of_production = fields?.year_of_production;
+      posting.mileage = fields?.mileage;
+      posting.price = fields?.price;
+      //US6AC2 Scraper adds shop that the posting was found from
+      posting.shop = "kentavar.bg";
       posting.source = filename;
-    CarPostingRecordRepository.Insert(posting);
+      CarPostingRecordRepository.Insert(posting);
+    }
 
     return choice.message.content;
   }
@@ -205,8 +206,21 @@ async function ExtractAllFields(message: MessageWrapper) {
   for (const file of files) {
     console.log(`Extracting fields from file ${file}`);
     const contents = fs.readFileSync(path.resolve(folderpath, file)).toString();
-    await Promise.all([ExtractFields(contents), Sleep(3000)]);
+    try {
+    await Promise.all([ExtractFields(file, contents), Sleep(60000)]);
     count++;
+    }
+    catch (e) {
+      console.log("Switching to openai/gpt-oss-120b model for reliability");
+      //US6AC5 Scraper switches between two suitable models if error occurs
+      try {
+        await Promise.all([ExtractFields(file, contents, "openai/gpt-oss-120b"), Sleep(60000)]);
+      }
+      catch (e) {
+        console.error(e);
+        await Sleep(15 * 1000 * 60);
+      }
+    }
   }
 
   reply(message, `Extracted fields from ${count} Markdown files`);
@@ -246,4 +260,8 @@ function shuffle(array: Array<any>) {
     [array[currentIndex], array[randomIndex]] = [
       array[randomIndex], array[currentIndex]];
   }
+}
+
+function getRandomInt(max: number) {
+  return Math.floor(Math.random() * max);
 }
