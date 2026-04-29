@@ -1,0 +1,29 @@
+import { Config } from "./config";
+import knex from "knex";
+
+/*
+export const Connection = knex.knex({
+    client: "sqlite3",
+    connection: {
+        filename: Config.dataPath() + "db.db",
+    },
+    useNullAsDefault: true,
+});*/
+
+export const Connection = knex({
+  client: "sqlite3",
+  connection: {
+      filename: Config.dataPath() + "/db.db",
+  },
+  useNullAsDefault: true,
+});
+
+export function ConstructNamedConnection(filename: string) {
+    return knex({
+    client: "sqlite3",
+    connection: {
+        filename: Config.dataPath() + `/${filename}.db`,
+    },
+    useNullAsDefault: true,
+    });
+}

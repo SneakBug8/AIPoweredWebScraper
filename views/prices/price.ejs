@@ -1,0 +1,56 @@
+<%- include('../partials/head') %>
+
+<h1>Single price record <%= price.Id %></h1>
+<style>
+    .numbercol {
+        text-align: right;
+    }
+</style>
+<% function formatDateInput(timestamp) {
+    if (!timestamp) return '';               // handle 0 / null / undefined
+    const d = new Date(Number.parseInt(timestamp, 10));
+    const year = d.getFullYear();
+    const month = (d.getMonth() + 1).toString().padStart(2, '0');
+    const day = d.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
+} %>
+    <% if (locals.message) { %>
+        <div class="alert alert-success"><%= message %></div>
+    <% } %>
+    <% if (locals.error) { %>
+        <div class="alert alert-danger"><%= error %></div>
+    <% } %>
+    <div class="bg"></div>
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <span class="form-control" id="id"><%= price.Id %></span>
+                    <a class="btn-close" data-bs-dismiss="modal" href="/prices" aria-label="Close"></a>
+                </div>
+                <form action="/price/<%= price.Id %>/update" method="POST">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="category" class="form-label">Category</label>
+                        <input name="category" class="form-control" id="category" placeholder="Category" value="<%= price.category %>">
+                        <label for="commodity" class="form-label">Commodity</label>
+                        <input name="commodity" class="form-control" id="commodity" placeholder="Commodity" value="<%= price.commodity %>">
+                        <label for="shop" class="form-label">Shop</label>
+                        <input name="shop" class="form-control" id="shop" placeholder="Shop" value="<%= price.shop %>">
+                        <label for="price" class="form-label">Price</label>
+                        <input name="price" class="form-control" id="price" placeholder="0" value="<%= price.price %>">
+                        <label for="volume" class="form-label">Volume</label>
+                        <input name="volume" class="form-control" id="volume" placeholder="0" value="<%= price.volume %>">
+                        <label for="unit" class="form-label">Unit</label>
+                        <input name="unit" class="form-control" id="unit" placeholder="Unit" value="<%= price.unit %>">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <a class="btn btn-secondary" href="/prices">Close</a>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                    <a class="btn btn-danger" href="/price/<%= price.Id %>/delete">Delete</a>
+                </div>
+                </form>
+            </div>
+        </div>
+
+<%- include('../partials/bottom') %>

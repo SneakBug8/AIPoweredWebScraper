@@ -1,0 +1,46 @@
+id;name;parent;class
+a;Project Management;;
+b;Career;;
+c;Leadership;;
+d;Knowledge Management;;
+e;Personal productivity;;
+f;Communication;;
+1;Who is Project Manager (Кто такой проектный менеджер);a;
+2;Project Management Knowledge Areas;a;r
+3;Project Phases;a;r
+4;Project Goals;a;r
+45;Project Management Processes;a;r
+5;PMBOK 7: What's new;a;
+6;Open Source tools for Project Management;a;
+7;GROW model for Decision Management;;
+8;SMART technique for setting goals;;
+9;p3.express - minimalistic Project Management Framework;a;
+10;Top free courses on Project Management;a;
+11;Agile and Scrim for Project Management;a;
+12;What is Project Management;a;
+13;Six Project Management Constraints;a;
+14;7 tips for your first IT job interview;b;
+15;Будущее за гибридной работой, как адаптироваться?;b;
+16;Какие вопросы обязательно задать при собеседовании на первую работу в IT?;b;
+17;FinTech Trends for 2022;;
+18;Principles of Argumentation;c;
+19;How to Become a Transformative Leader in 2022;c;
+20;Stakeholder Engagement;a;
+21;What documentation is essential for every project;d;
+22;How to distinguish Process Management and Knowledge Management;d;
+23;6 видов документации обязательных для каждого проекта;d;r
+24;Methods of Sharing Knowledge with other teams;d;
+25;Writing Skills are essential for an IT specialist career;d;
+26;6 советов по созданию базы знаний IT команды с нуля используя лишь Word;r;
+27;8 tips on how to control projects at work;e;
+28;Рабочая записная книжка должна быть в OneNote;e;
+29;8 tips for effective business writing communication for dummies;f;
+30;How to run effective meetings with no experience: 10 research-based tips;f;
+31;Зачем нужна аналитика данных;a;
+32;What is Natural Language Processing and what are its problems with different languages;;
+33;Victoria 3: чего ждать от игры;a;
+34;Управление ресурсами в проектном менеджменте;a;r
+39;Какие задачи решаются на каждом уровне управления проектами, программами и портфолио?;a;r
+40;Из чего состоит компания с точки зрения проектного менеджмента?;a;r
+41;Факторы, которые приводят к созданию проекта;a;r
+43;Два базовых понятия проектного менеджмента;a;r

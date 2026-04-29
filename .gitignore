@@ -1,0 +1,14 @@
+bin/
+diary
+node_modules/
+.env
+.env_prod
+package-lock.json
+data
+.vs
+backup.zip
+*.log
+builds/
+builds/*/node_modules
+builds/*
+*.tsbuildinfo

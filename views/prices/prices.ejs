@@ -1,0 +1,102 @@
+<%- include('../partials/head') %>
+
+    <h1>Price Records</h1>
+    <div class="mt-3">
+        <a href="/prices/report" class="btn btn-primary">Cheapest by Category Report</a>
+    </div>
+    <p>Here you can manage all your price records.</p>
+    <style>
+        .numbercol {
+            text-align: right;
+        }
+    </style>
+    <% function formatDate(v) { if (!v) { v=0; } var d=new Date(Number.parseInt(v, 10)); return d.getFullYear() + "-" +
+        (d.getMonth() + 1) + "-" + d.getDate(); } %>
+        <% if (locals.message) { %>
+            <div class="alert alert-success">
+                <%= message %>
+            </div>
+            <% } %>
+                <% if (locals.error) { %>
+                    <div class="alert alert-danger">
+                        <%= error %>
+                    </div>
+                    <% } %>
+                        <table id="prices">
+                            <thead>
+                                <td>Id</td>
+                                <td>Category</td>
+                                <td>Commodity</td>
+                                <td>Shop</td>
+                                <td>Price, €</td>
+                                <td>Volume</td>
+                                <td>Unit</td>
+                                <td>Price/1000, €</td>
+                                <td>Creation Date</td>
+                                <td>Actions</td>
+                            </thead>
+                            <tbody id="tbody">
+                                <% for (record of prices) { %>
+                                    <tr>
+                                        <td class="numbercol">
+                                            <%= record.Id || 0 %>
+                                        </td>
+                                        <td class="numbercol">
+                                            <%= record.category || "" %>
+                                        </td>
+                                        <td class="numbercol">
+                                            <%= record.commodity || "" %>
+                                        </td>
+                                        <td class="numbercol">
+                                            <%= record.shop || "" %>
+                                        </td>
+                                        <td class="numbercol">
+                                            <%= record.price || 0 %>
+                                        </td>
+                                        <td class="numbercol">
+                                            <%= record.volume || 0 %>
+                                        </td>
+                                        <td class="numbercol">
+                                            <%= record.unit || "" %>
+                                        </td>
+                                        <td class="numbercol">
+                                            <%= record.pricePer1000 ? record.pricePer1000.toFixed(2) : 0 %>
+                                        </td>
+                                        <td class="numbercol">
+                                            <%= formatDate(record.MIS_DT) || 0 %>
+                                        </td>
+                                        <td>
+                                            <a href="/price/<%= record.Id %>">Update</a>
+                                        </td>
+                                    </tr>
+                                    <% } %>
+                            </tbody>
+                        </table>
+                        <div>
+                            <form action="/prices/add" method="POST">
+                                <h3>Add price record</h3>
+                                <div class="mb-3">
+                                    <label for="category" class="form-label">Category</label>
+                                    <input name="category" required class="form-control" id="category" placeholder="Category">
+                                    <label for="commodity" class="form-label">Commodity</label>
+                                    <input name="commodity" required class="form-control" id="commodity" placeholder="Commodity">
+                                    <label for="shop" class="form-label">Shop</label>
+                                    <input name="shop" required class="form-control" id="shop" placeholder="Shop">
+                                    <label for="price" class="form-label">Price, €</label>
+                                    <input name="price" required class="form-control" id="price" placeholder="0">
+                                    <label for="volume" class="form-label">Volume</label>
+                                    <input name="volume" required class="form-control" id="volume" placeholder="0">
+                                    <label for="unit" class="form-label">Unit</label>
+                                    <input name="unit" required class="form-control" id="unit" placeholder="Unit">
+                                </div>
+                                <input type="submit" class="btn btn-success" />
+                            </form>
+                        </div>
+                        <script defer>
+                            $(document).ready(function () {
+                                $('#prices').DataTable();
+                            });
+
+                        </script>
+
+                        <%- include('../partials/bottom') %>
