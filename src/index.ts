@@ -29,10 +29,7 @@ export function setWaitingForValuePure(callback: (message: MessageWrapper) => an
 export function defaultKeyboard(): TelegramBot.KeyboardButton[][]
 {
     return [
-        [{ text: "/slots" }, { text: "/slot prev" }, { text: "/slot next" }],
-        [{ text: "/logs" }, { text: "/publish" }, { text: "/evergreen" }],
-        [{ text: "/networking" }, { text: "/book" }, { text: "/investment" }],
-        [{ text: "/reset" }, { text: "/notes undo" }, { text: "/extra" }],
+        [{ text: "/scrape" }, { text: "/convert_to_md" }, { text: "/extract_fields" }],
     ];
 }
 

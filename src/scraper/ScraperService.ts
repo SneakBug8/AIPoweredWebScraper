@@ -34,15 +34,43 @@ async function ScrapePage(driver: WebDriver, url: string, categoryUrl: string) {
   const pagepieces = url.split("/");
   const pagename = pagepieces[pagepieces.length - 1].replace("?", "-").replace(".", "-").replace("=", "-"); //await driver.getTitle();
 
+  // US2AC7 The scraper adds a[href] links on the page to the queue
+  // US3 The scraper filters links it finds to narrow down search
+  // US3AC1 The scraper follows the link only if it is part of the categoryUrl (base url)
+  // Scrape links before we delete them below to avoid stale elements being referenced
+  for (const element of await driver.findElements(By.css('a'))) {
+    const href = await element.getAttribute("href");
+    if (href && !ScrapedURLs.includes(href) && href.includes(categoryUrl)) {
+      const sanitizedHref = href.replace("#", "");
+      URLsQueue.push(sanitizedHref);
+    }
+  }
+
+  ScrapedURLs.push(url);
+
   // US5 The scraper removes some unwanted elements from the page
-  const unwantedElements = [...await driver.findElements(By.css('img')), await driver.findElements(By.css('.contact'))]
-  for (const element of unwantedElements) {
+  const unwantedElementsSelectors = ['a:has(>img)', 'img', '.contact']
+  for (const selector of unwantedElementsSelectors) {
+    for (const element of await driver.findElements(By.css(selector))) {
     await driver.executeScript(`
       var element = arguments[0];
       if (element && element.parentNode)
         element.parentNode.removeChild(element);
       `, element);
+    }
   }
+  // Delete empty links
+  /*for (const element of await driver.findElements(By.css('a'))) {
+    const content = await element.getAttribute("innerHTML");
+    console.log(content);
+    if (!content) {
+      await driver.executeScript(`
+      var element = arguments[0];
+      if (element && element.parentNode)
+        element.parentNode.removeChild(element);
+      `, element);
+    }
+  }*/
 
   // US4AC1 To remove clutter, the scraper saves only meaningful part of the page
   const pagehtmlpath = path.resolve(Config.dataPath(), "kentavar/" + pagename + ".html");
@@ -54,19 +82,6 @@ async function ScrapePage(driver: WebDriver, url: string, categoryUrl: string) {
   //  ExtractMarkdown(pagehtmlpath);
 
   await Sleep(2000);
-
-  // US2AC7 The scraper adds a[href] links on the page to the queue
-  // US3 The scraper filters links it finds to narrow down search
-  // US3AC1 The scraper follows the link only if it is part of the categoryUrl (base url)
-  for (const element of await driver.findElements(By.css('a'))) {
-    const href = await element.getAttribute("href");
-    if (href && !ScrapedURLs.includes(href) && href.includes(categoryUrl)) {
-      const sanitizedHref = href.replace("#", "");
-      URLsQueue.push(sanitizedHref);
-    }
-  }
-
-  ScrapedURLs.push(url);
 
   //US2AC8 The scraper continues scraping until the queue is empty
   while (URLsQueue.length) {
@@ -124,6 +139,10 @@ async function ConvertAllToMd(message: MessageWrapper) {
 //US6 Scraper uses AI to extract key fields from the scraped pages
 
 async function ExtractFields(filename: string, content: string, model = 'openai/gpt-oss-20b') {
+  // Filter out non-single car pages
+  if (!content.toLowerCase().includes("цена"))
+    return;
+
   const messages = [
     { role: 'system', content: "Extract fields from the car sale posting. Take price in EUR." },
     { role: 'user', content: content },
@@ -164,7 +183,7 @@ async function ExtractFields(filename: string, content: string, model = 'openai/
 
     if (!fields.is_single_car_page)
       return;
-    
+
     //US6AC3 Scraper inserts new postings it found in the DB
     //US6AC4 Scraper updates postings coming from the same source
     const existing_record = await CarPostingRecordRepository.GetWithSource(filename);
@@ -206,9 +225,10 @@ async function ExtractAllFields(message: MessageWrapper) {
   for (const file of files) {
     console.log(`Extracting fields from file ${file}`);
     const contents = fs.readFileSync(path.resolve(folderpath, file)).toString();
+
     try {
-    await Promise.all([ExtractFields(file, contents), Sleep(60000)]);
-    count++;
+      await Promise.all([ExtractFields(file, contents), Sleep(60000)]);
+      count++;
     }
     catch (e) {
       console.log("Switching to openai/gpt-oss-120b model for reliability");
