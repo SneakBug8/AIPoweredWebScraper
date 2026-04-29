@@ -6,6 +6,8 @@ import { Sleep } from "../util/Sleep";
 import * as fs from "fs";
 import * as path from "path";
 import TurndownService from 'turndown';
+import { GroqAPI } from "../api/groq";
+import { CarPostingRecord, CarPostingRecordRepository } from "./CarPostingRecord";
 
 function reply(msg: MessageWrapper, text: string) {
   msg.reply(text);
@@ -16,8 +18,6 @@ function reply(msg: MessageWrapper, text: string) {
 let ScrapedURLs = new Array<string>();
 // US2AC2 The scraper maintains a queue of URLs to scrape
 let URLsQueue = new Array<string>();
-// US2AC3 The scraper keeps count of how many pages it scraped
-let PagesScraped = 0;
 
 async function ScrapePage(driver: WebDriver, url: string, categoryUrl: string) {
   // US2AC4 If URL to scrape has already been scraped, the scraper ignores it
@@ -32,7 +32,7 @@ async function ScrapePage(driver: WebDriver, url: string, categoryUrl: string) {
 
   // US4 The scraper saves the html of the page to the filesystem
   const pagepieces = url.split("/");
-  const pagename = pagepieces[pagepieces.length-1].replace("?","-").replace(".","-").replace("=","-"); //await driver.getTitle();
+  const pagename = pagepieces[pagepieces.length - 1].replace("?", "-").replace(".", "-").replace("=", "-"); //await driver.getTitle();
 
   // US5 The scraper removes some unwanted elements from the page
   const unwantedElements = [...await driver.findElements(By.css('img')), await driver.findElements(By.css('.contact'))]
@@ -80,10 +80,26 @@ async function ScrapePage(driver: WebDriver, url: string, categoryUrl: string) {
   // .sendKeys('webdriver', Key.RETURN)
 }
 
+// US1AC3 Scraping is done async to bot operations
+async function RunFullScraping(message: MessageWrapper) {
+  const driver = await new Builder().forBrowser(Browser.FIREFOX).build();
+
+  try {
+    await ScrapePage(driver, "https://www.kentavar.bg/prodajba-na-avtomobili-vtora-upotreba", "https://www.kentavar.bg/prodajba-na-avtomobili-vtora-upotreba");
+  }
+  catch (e) {
+    console.error(e);
+  }
+  finally {
+    await driver.quit();
+  }
+  reply(message, `Scraped ${ScrapedURLs.length} pages`);
+}
+
 // US4 The scraper extracts markdown files for processing
 async function ExtractMarkdown(pagehtmlpath: string) {
   const contents = fs.readFileSync(pagehtmlpath).toString();
-  
+
   //const res = convert(contents);
   var turndownService = new TurndownService();
   var markdown = turndownService.turndown(contents);
@@ -105,20 +121,81 @@ async function ConvertAllToMd(message: MessageWrapper) {
   reply(message, `Converted ${count} files to Markdown`);
 }
 
-// US1AC3 Scraping is done async to bot operations
-async function RunFullScraping(message: MessageWrapper) {
-    const driver = await new Builder().forBrowser(Browser.FIREFOX).build();
+//US6 Scraper uses AI to extract key fields from the scraped pages
 
-    try {
-      await ScrapePage(driver, "https://www.kentavar.bg/prodajba-na-avtomobili-vtora-upotreba", "https://www.kentavar.bg/prodajba-na-avtomobili-vtora-upotreba");
+async function ExtractFields(content: string) {
+  const messages = [
+    { role: 'system', content: "Extract fields from the car sale posting. Take price in EUR." },
+    { role: 'user', content: content },
+  ];
+
+  //US6AC1 Scraper extracts car brand, model, production year, mileage, and price
+  const chatCompletion = await GroqAPI.chat.completions.create({
+    messages: messages as any,
+    model: 'openai/gpt-oss-20b',
+    response_format: {
+      "type": "json_schema",
+      "json_schema": {
+        "name": "car_sale_posting",
+        "strict": true,
+        "schema": {
+          "type": "object",
+          "properties": {
+            "is_single_car_page": { "type": "boolean" },
+            "car_brand": { "type": "string" },
+            "model": { "type": "string" },
+            "year_of_production": { "type": "number" },
+            "mileage": { "type": "number" },
+            "price": { "type": "number" },
+          },
+          "required": ["is_single_car_page", "car_brand", "model", "year_of_production", "mileage", "price"],
+          "additionalProperties": false
+        }
+      }
     }
-    catch (e) {
-      console.error(e);
-    }
-    finally {
-      await driver.quit();
-    }
-    reply(message, `Scraped ${PagesScraped} pages`);
+  });
+
+  console.log(chatCompletion.id);
+
+
+  for (const choice of chatCompletion.choices) {
+    const fields = JSON.parse(choice.message.content || "{}");
+    console.log(choice.message.content);
+
+    if (!fields.is_single_car_page)
+      return;
+
+    const posting = new CarPostingRecord();
+    posting.car_brand = fields?.car_brand;
+    posting.model = fields?.model;
+    posting.year_of_production = fields?.year_of_production;
+    posting.mileage = fields?.mileage;
+    posting.price = fields?.price;
+    //US6AC2 Scraper adds shop that the posting was found from
+    posting.shop = "kentavar.bg";
+    //US6AC3 Scraper saves postings in the DB
+    CarPostingRecordRepository.Insert(posting);
+
+    return choice.message.content;
+  }
+}
+
+async function ExtractAllFields(message: MessageWrapper) {
+  const folderpath = path.resolve(Config.dataPath(), "kentavar_md");
+
+  let count = 0;
+
+  const files = fs.readdirSync(folderpath);
+  shuffle(files);
+
+  for (const file of files) {
+    console.log(`Extracting fields from file ${file}`);
+    const contents = fs.readFileSync(path.resolve(folderpath, file)).toString();
+    await Promise.all([ExtractFields(contents), Sleep(3000)]);
+    count++;
+  }
+
+  reply(message, `Extracted fields from ${count} Markdown files`);
 }
 
 // US1 User initiates scraping with /scrape command
@@ -133,10 +210,15 @@ export async function ProcessScraper(message: MessageWrapper) {
     ConvertAllToMd(message);
     return true;
   }
+  else if (message.checkRegex(/\/extract_fields/)) {
+    //US6AC2 Field extraction is done async to the main bot flow
+    ExtractAllFields(message);
+    return true;
+  }
   return false;
 }
 
-function shuffle(array : Array<any>) {
+function shuffle(array: Array<any>) {
   let currentIndex = array.length;
 
   // While there remain elements to shuffle...

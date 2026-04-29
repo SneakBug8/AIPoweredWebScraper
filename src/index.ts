@@ -11,8 +11,6 @@ import { Sleep } from "./util/Sleep";
 import { Scheduler } from "./util/Scheduler";
 import { ErrorLogger } from "./util/ErrorLogger";
 import { SyncEvent } from "./util/SyncEvent";
-import { PriceRecordWebService } from "./prices/PriceRecordWebService";
-import { ProcessPriceRecords } from "./prices/PriceRecordService";
 import { ProcessScraper } from "./scraper/ScraperService";
 
 let waitingCallback: ((message: MessageWrapper) => any) | null = null;
@@ -38,16 +36,6 @@ export function defaultKeyboard(): TelegramBot.KeyboardButton[][]
     ];
 }
 
-export function extraKeyboard(): TelegramBot.KeyboardButton[][]
-{
-    return [
-        [{ text: "/notify" }, { text: "/timer" }, { text: "/networking policy set" }],
-        [{ text: "/projects" }, { text: "/learning" }, { text: "/todo" }],
-        [{ text: "/load" }, {text:"/crypto"}],
-        [{ text: "/exit" }],
-    ];
-}
-
 class App
 {
     private bot: TelegramBot;
@@ -70,7 +58,7 @@ class App
 
 
         // Web modules
-        PriceRecordWebService.Init();
+        // PriceRecordWebService.Init();
 
         this.bot.on("text", async (msg) =>
         {
@@ -161,12 +149,7 @@ class App
                 return message.reply("Main module.");
             }
 
-            if (message.checkRegex(/\/extra/)) {
-                return Server.SendMessage("Extra modules", extraKeyboard());
-            }
-
             const listeners = [
-                ProcessPriceRecords,
                 ProcessScraper,
                 ProcessBackup,
             ];
