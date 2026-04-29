@@ -165,6 +165,20 @@ async function ExtractFields(content: string) {
     if (!fields.is_single_car_page)
       return;
 
+    //US6AC3 Scraper inserts new postings it found in the DB
+    //US6AC4 Scraper updates postings coming from the same source
+    const existing_record = await CarPostingRecordRepository.GetWithSource(filename);
+    if (existing_record) {
+      existing_record.car_brand = fields?.car_brand;
+      existing_record.model = fields?.model;
+      existing_record.year_of_production = fields?.year_of_production;
+      existing_record.mileage = fields?.mileage;
+      existing_record.price = fields?.price;
+      existing_record.shop = "kentavar.bg";
+      existing_record.source = filename;
+      await CarPostingRecordRepository.Update(existing_record);
+    }
+    else {
     const posting = new CarPostingRecord();
     posting.car_brand = fields?.car_brand;
     posting.model = fields?.model;
@@ -173,7 +187,7 @@ async function ExtractFields(content: string) {
     posting.price = fields?.price;
     //US6AC2 Scraper adds shop that the posting was found from
     posting.shop = "kentavar.bg";
-    //US6AC3 Scraper saves postings in the DB
+      posting.source = filename;
     CarPostingRecordRepository.Insert(posting);
 
     return choice.message.content;

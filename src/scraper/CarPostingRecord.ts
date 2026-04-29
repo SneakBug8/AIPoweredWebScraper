@@ -9,6 +9,7 @@ export class CarPostingRecord extends Entity {
   public mileage = 0;
   public price = 0;
   public shop = "default";
+  public source = "";
 }
 
 class CarPostingRecordRepositoryClass extends EntityFactory<CarPostingRecord> {
@@ -18,6 +19,13 @@ class CarPostingRecordRepositoryClass extends EntityFactory<CarPostingRecord> {
       .limit(count)
       .select() as CarPostingRecord[];
     return Promise.all(entries.map(x => this.Parse(x)));
+  }
+
+  public async GetWithSource(source: string): Promise<CarPostingRecord> {
+    const entry = await this.Connection()
+      .where("source", source)
+      .select().first() as CarPostingRecord;
+    return this.Parse(entry);
   }
 
   public async Parse(t: CarPostingRecord): Promise<CarPostingRecord> {
