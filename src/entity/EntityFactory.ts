@@ -20,7 +20,7 @@ export class EntityFactory<T extends Entity> {
     }
 
     public async GetById(id: number) {
-        const entries = await this.Connection().where("id", "LIKE", `%${id}%`).select();
+        const entries = await this.Connection().where("Id", "LIKE", `%${id}%`).select();
 
         if (entries.length) {
             return this.Parse(entries[0]);
@@ -48,7 +48,7 @@ export class EntityFactory<T extends Entity> {
     }
 
     public async HardDelete(id: number) {
-        await this.Connection().delete().where("id", id);
+        await this.Connection().delete().where("Id", id);
     }
 
     public async Insert(exercise: T) {
@@ -64,7 +64,7 @@ export class EntityFactory<T extends Entity> {
     public async Update(exercise: T) {
         exercise = await this.Cleanup(exercise);
         exercise.UPDATED_DT = MIS_DT.GetExact();
-        await this.Connection().where("id", exercise.Id).update(exercise);
+        await this.Connection().where("Id", exercise.Id).update(exercise);
         return this.Parse(exercise);
     }
 
