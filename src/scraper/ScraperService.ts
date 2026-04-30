@@ -55,7 +55,7 @@ async function ScrapePage(driver: WebDriver, url: string, categoryUrl: string) {
   const unwantedElementsSelectors = ['a:has(>img)', 'img', '.contact']
   for (const selector of unwantedElementsSelectors) {
     for (const element of await driver.findElements(By.css(selector))) {
-    await driver.executeScript(`
+      await driver.executeScript(`
       var element = arguments[0];
       if (element && element.parentNode)
         element.parentNode.removeChild(element);
@@ -120,6 +120,9 @@ async function ScrapePage(driver: WebDriver, url: string, categoryUrl: string) {
 async function RunFullScraping(message: MessageWrapper) {
   const driver = await new Builder().forBrowser(Browser.FIREFOX).build();
 
+  // Reset cached entries
+  ScrapedURLs = []; URLsQueue = [];
+
   try {
     await ScrapePage(driver, "https://www.kentavar.bg/prodajba-na-avtomobili-vtora-upotreba", "https://www.kentavar.bg/prodajba-na-avtomobili-vtora-upotreba");
   }
@@ -144,15 +147,15 @@ async function ExtractMarkdown(pagehtmlpath: string, markdownpath: string) {
 }
 
 async function ConvertAllToMd(message: MessageWrapper) {
-      let count = 0;
+  let count = 0;
 
   for (const record of await ScrapedPageRecordRepository.GetAll()) {
     if (!record.htmlfilepath || record.mdfilepath)
       continue;
 
     const markdownpath = path.resolve(Config.dataPath(), "kentavar_md/" + path.basename(record.htmlfilepath) + ".md");
-      await ExtractMarkdown(record.htmlfilepath, markdownpath);
-      count++;
+    await ExtractMarkdown(record.htmlfilepath, markdownpath);
+    count++;
 
     record.mdfilepath = markdownpath;
     await ScrapedPageRecordRepository.Update(record);
@@ -163,8 +166,10 @@ async function ConvertAllToMd(message: MessageWrapper) {
 
 //US6 Scraper uses AI to extract key fields from the scraped pages
 
-async function ExtractFields(url: string, content: string, model = 'openai/gpt-oss-20b') {
+async function ExtractFields(record: ScrapedPageRecord, content: string, model = 'openai/gpt-oss-20b') {
   // Filter out non-single car pages
+  const url = record.URL;
+
   if (!content.toLowerCase().includes("цена"))
     return;
 
@@ -200,7 +205,10 @@ async function ExtractFields(url: string, content: string, model = 'openai/gpt-o
   });
 
   console.log(chatCompletion.id);
-
+  
+  // Move update so it doesn't get called with an error from API
+  record.mdfilepath = null;
+  await ScrapedPageRecordRepository.Update(record);
 
   for (const choice of chatCompletion.choices) {
     const fields = JSON.parse(choice.message.content || "{}");
@@ -254,23 +262,20 @@ async function ExtractAllFields(message: MessageWrapper) {
     const contents = fs.readFileSync(record.mdfilepath).toString();
 
     try {
-      await Promise.all([ExtractFields(record.URL, contents), Sleep(60000)]);
+      await Promise.all([ExtractFields(record, contents), Sleep(30000)]);
       count++;
     }
     catch (e) {
       console.log("Switching to openai/gpt-oss-120b model for reliability");
       //US6AC5 Scraper switches between two suitable models if error occurs
       try {
-        await Promise.all([ExtractFields(record.URL, contents, "openai/gpt-oss-120b"), Sleep(60000)]);
+        await Promise.all([ExtractFields(record, contents, "openai/gpt-oss-120b"), Sleep(30000)]);
       }
       catch (e) {
         console.error(e);
         await Sleep(15 * 1000 * 60);
       }
     }
-
-    record.mdfilepath = null;
-    await ScrapedPageRecordRepository.Update(record);
   }
 
   reply(message, `Extracted fields from ${count} Markdown files`);
