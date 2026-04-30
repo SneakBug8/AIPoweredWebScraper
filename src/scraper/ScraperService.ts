@@ -8,6 +8,7 @@ import * as path from "path";
 import TurndownService from 'turndown';
 import { GroqAPI } from "../api/groq";
 import { CarPostingRecord, CarPostingRecordRepository } from "./CarPostingRecord";
+import { ScrapedPageRecord, ScrapedPageRecordRepository } from "./ScrapedPage";
 
 function reply(msg: MessageWrapper, text: string) {
   msg.reply(text);
@@ -21,6 +22,8 @@ let URLsQueue = new Array<string>();
 
 async function ScrapePage(driver: WebDriver, url: string, categoryUrl: string) {
   // US2AC4 If URL to scrape has already been scraped, the scraper ignores it
+  if (!url)
+    return;
   if (ScrapedURLs.includes(url)) {
     console.log(`Skipping already visited page ${url}`);
     return;
@@ -77,6 +80,24 @@ async function ScrapePage(driver: WebDriver, url: string, categoryUrl: string) {
   const bodyel = await driver.findElement(By.css(".container"));
   fs.writeFileSync(pagehtmlpath, await bodyel.getAttribute("innerHTML"));
 
+  // console.log("Saved HTML contents to drive");
+
+  //US2AC10 Scraper maintains metadata records in the database to link URLs with outputted files
+  const existing_record = await ScrapedPageRecordRepository.GetWithURL(url);
+  if (existing_record) {
+    existing_record.LAST_FETCHED = MIS_DT.GetExact();
+    existing_record.htmlfilepath = pagehtmlpath;
+    existing_record.mdfilepath = null;
+    await ScrapedPageRecordRepository.Update(existing_record);
+  }
+  else {
+    const record = new ScrapedPageRecord();
+    record.URL = url;
+    record.LAST_FETCHED = MIS_DT.GetExact();
+    record.htmlfilepath = pagehtmlpath;
+    await ScrapedPageRecordRepository.Insert(record);
+  }
+
   // US4AC1 Only pages with actual cars (that have a buy button)
   //if ((await driver.getPageSource()).includes("или купи на изплащане"))
   //  ExtractMarkdown(pagehtmlpath);
@@ -112,25 +133,29 @@ async function RunFullScraping(message: MessageWrapper) {
 }
 
 // US4 The scraper extracts markdown files for processing
-async function ExtractMarkdown(pagehtmlpath: string) {
+async function ExtractMarkdown(pagehtmlpath: string, markdownpath: string) {
   const contents = fs.readFileSync(pagehtmlpath).toString();
 
   //const res = convert(contents);
   var turndownService = new TurndownService();
   var markdown = turndownService.turndown(contents);
 
-  const markdownpath = path.resolve(Config.dataPath(), "kentavar_md/" + path.basename(pagehtmlpath) + ".md");
   fs.writeFileSync(markdownpath, markdown);
 }
 
 async function ConvertAllToMd(message: MessageWrapper) {
-  const folderpath = path.resolve(Config.dataPath(), "kentavar");
+      let count = 0;
 
-  let count = 0;
+  for (const record of await ScrapedPageRecordRepository.GetAll()) {
+    if (!record.htmlfilepath || record.mdfilepath)
+      continue;
 
-  for (const file of fs.readdirSync(folderpath)) {
-    await ExtractMarkdown(path.resolve(folderpath, file));
-    count++;
+    const markdownpath = path.resolve(Config.dataPath(), "kentavar_md/" + path.basename(record.htmlfilepath) + ".md");
+      await ExtractMarkdown(record.htmlfilepath, markdownpath);
+      count++;
+
+    record.mdfilepath = markdownpath;
+    await ScrapedPageRecordRepository.Update(record);
   }
 
   reply(message, `Converted ${count} files to Markdown`);
@@ -138,7 +163,7 @@ async function ConvertAllToMd(message: MessageWrapper) {
 
 //US6 Scraper uses AI to extract key fields from the scraped pages
 
-async function ExtractFields(filename: string, content: string, model = 'openai/gpt-oss-20b') {
+async function ExtractFields(url: string, content: string, model = 'openai/gpt-oss-20b') {
   // Filter out non-single car pages
   if (!content.toLowerCase().includes("цена"))
     return;
@@ -186,7 +211,7 @@ async function ExtractFields(filename: string, content: string, model = 'openai/
 
     //US6AC3 Scraper inserts new postings it found in the DB
     //US6AC4 Scraper updates postings coming from the same source
-    const existing_record = await CarPostingRecordRepository.GetWithSource(filename);
+    const existing_record = await CarPostingRecordRepository.GetWithSource(url);
     if (existing_record) {
       existing_record.car_brand = fields?.car_brand;
       existing_record.model = fields?.model;
@@ -194,7 +219,7 @@ async function ExtractFields(filename: string, content: string, model = 'openai/
       existing_record.mileage = fields?.mileage;
       existing_record.price = fields?.price;
       existing_record.shop = "kentavar.bg";
-      existing_record.source = filename;
+      existing_record.source = url;
       await CarPostingRecordRepository.Update(existing_record);
     }
     else {
@@ -206,7 +231,7 @@ async function ExtractFields(filename: string, content: string, model = 'openai/
       posting.price = fields?.price;
       //US6AC2 Scraper adds shop that the posting was found from
       posting.shop = "kentavar.bg";
-      posting.source = filename;
+      posting.source = url;
       CarPostingRecordRepository.Insert(posting);
     }
 
@@ -215,32 +240,37 @@ async function ExtractFields(filename: string, content: string, model = 'openai/
 }
 
 async function ExtractAllFields(message: MessageWrapper) {
-  const folderpath = path.resolve(Config.dataPath(), "kentavar_md");
 
   let count = 0;
 
-  const files = fs.readdirSync(folderpath);
-  shuffle(files);
+  const records = await ScrapedPageRecordRepository.GetAll();
+  shuffle(records);
 
-  for (const file of files) {
-    console.log(`Extracting fields from file ${file}`);
-    const contents = fs.readFileSync(path.resolve(folderpath, file)).toString();
+  for (const record of records) {
+    if (!record.mdfilepath)
+      continue;
+
+    console.log(`Extracting fields from file ${path.basename(record.mdfilepath)}`);
+    const contents = fs.readFileSync(record.mdfilepath).toString();
 
     try {
-      await Promise.all([ExtractFields(file, contents), Sleep(60000)]);
+      await Promise.all([ExtractFields(record.URL, contents), Sleep(60000)]);
       count++;
     }
     catch (e) {
       console.log("Switching to openai/gpt-oss-120b model for reliability");
       //US6AC5 Scraper switches between two suitable models if error occurs
       try {
-        await Promise.all([ExtractFields(file, contents, "openai/gpt-oss-120b"), Sleep(60000)]);
+        await Promise.all([ExtractFields(record.URL, contents, "openai/gpt-oss-120b"), Sleep(60000)]);
       }
       catch (e) {
         console.error(e);
         await Sleep(15 * 1000 * 60);
       }
     }
+
+    record.mdfilepath = null;
+    await ScrapedPageRecordRepository.Update(record);
   }
 
   reply(message, `Extracted fields from ${count} Markdown files`);
