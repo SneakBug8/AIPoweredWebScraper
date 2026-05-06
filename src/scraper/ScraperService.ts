@@ -9,6 +9,7 @@ import TurndownService from 'turndown';
 import { GroqAPI } from "../api/groq";
 import { CarPostingRecord, CarPostingRecordRepository } from "./CarPostingRecord";
 import { ScrapedPageRecord, ScrapedPageRecordRepository } from "./ScrapedPage";
+import { AutoBgSource, KentavarSource, ScrapeSource } from "./ScrapeSource";
 
 function reply(msg: MessageWrapper, text: string) {
   msg.reply(text);
@@ -20,7 +21,7 @@ let ScrapedURLs = new Array<string>();
 // US2AC2 The scraper maintains a queue of URLs to scrape
 let URLsQueue = new Array<string>();
 
-async function ScrapePage(driver: WebDriver, url: string, categoryUrl: string) {
+async function ScrapePage(driver: WebDriver, url: string, source: ScrapeSource) {
   // US2AC4 If URL to scrape has already been scraped, the scraper ignores it
   if (!url)
     return;
@@ -39,11 +40,14 @@ async function ScrapePage(driver: WebDriver, url: string, categoryUrl: string) {
 
   // US2AC7 The scraper adds a[href] links on the page to the queue
   // US3 The scraper filters links it finds to narrow down search
-  // US3AC1 The scraper follows the link only if it is part of the categoryUrl (base url)
+  // US3AC1 The scraper follows the link only if it is part of the categoryUrl (base url) or initial URL
   // Scrape links before we delete them below to avoid stale elements being referenced
   for (const element of await driver.findElements(By.css('a'))) {
     const href = await element.getAttribute("href");
-    if (href && !ScrapedURLs.includes(href) && href.includes(categoryUrl)) {
+    if (href && !ScrapedURLs.includes(href) &&
+      (href.includes(source.categoryUrl) || href.includes(source.initialUrl))
+      && !href.includes("sms:") && !href.includes("tel:")
+      && !href.includes("viber:") && !href.includes("about:")) {
       const sanitizedHref = href.replace("#", "");
       URLsQueue.push(sanitizedHref);
     }
@@ -52,8 +56,7 @@ async function ScrapePage(driver: WebDriver, url: string, categoryUrl: string) {
   ScrapedURLs.push(url);
 
   // US5 The scraper removes some unwanted elements from the page
-  const unwantedElementsSelectors = ['a:has(>img)', 'img', '.contact']
-  for (const selector of unwantedElementsSelectors) {
+  for (const selector of source.unwantedElementsSelectors) {
     for (const element of await driver.findElements(By.css(selector))) {
       await driver.executeScript(`
       var element = arguments[0];
@@ -75,56 +78,62 @@ async function ScrapePage(driver: WebDriver, url: string, categoryUrl: string) {
     }
   }*/
 
-  // US4AC1 To remove clutter, the scraper saves only meaningful part of the page
-  const pagehtmlpath = path.resolve(Config.dataPath(), "kentavar/" + pagename + ".html");
-  const bodyel = await driver.findElement(By.css(".container"));
-  fs.writeFileSync(pagehtmlpath, await bodyel.getAttribute("innerHTML"));
+  if (url.includes(source.categoryUrl)) {
+    // US4AC1 To remove clutter, the scraper saves only meaningful part of the page
+    const pagehtmlpath = path.resolve(Config.dataPath(), source.folderName + "/" + pagename + ".html");
+    const bodyel = await driver.findElement(By.css(source.rootElement));
+    if (!bodyel) {
+      throw new Error("Body element not found");
+    }
+    fs.writeFileSync(pagehtmlpath, await bodyel.getAttribute("innerHTML"));
 
-  // console.log("Saved HTML contents to drive");
+    // console.log("Saved HTML contents to drive");
 
-  //US2AC10 Scraper maintains metadata records in the database to link URLs with outputted files
-  const existing_record = await ScrapedPageRecordRepository.GetWithURL(url);
-  if (existing_record) {
-    existing_record.LAST_FETCHED = MIS_DT.GetExact();
-    existing_record.htmlfilepath = pagehtmlpath;
-    existing_record.mdfilepath = null;
-    await ScrapedPageRecordRepository.Update(existing_record);
-  }
-  else {
-    const record = new ScrapedPageRecord();
-    record.URL = url;
-    record.LAST_FETCHED = MIS_DT.GetExact();
-    record.htmlfilepath = pagehtmlpath;
-    await ScrapedPageRecordRepository.Insert(record);
+    //US2AC10 Scraper maintains metadata records in the database to link URLs with outputted files
+    const existing_record = await ScrapedPageRecordRepository.GetWithURL(url);
+    if (existing_record) {
+      existing_record.LAST_FETCHED = MIS_DT.GetExact();
+      existing_record.htmlfilepath = pagehtmlpath;
+      existing_record.mdfilepath = null;
+      await ScrapedPageRecordRepository.Update(existing_record);
+    }
+    else {
+      const record = new ScrapedPageRecord();
+      record.URL = url;
+      record.LAST_FETCHED = MIS_DT.GetExact();
+      record.htmlfilepath = pagehtmlpath;
+      await ScrapedPageRecordRepository.Insert(record);
+    }
   }
 
   // US4AC1 Only pages with actual cars (that have a buy button)
   //if ((await driver.getPageSource()).includes("или купи на изплащане"))
   //  ExtractMarkdown(pagehtmlpath);
 
-  await Sleep(2000);
+  await Sleep(3000);
 
   //US2AC8 The scraper continues scraping until the queue is empty
   while (URLsQueue.length) {
     const url = URLsQueue.pop();
     if (!url)
       return;
-    await ScrapePage(driver, url, categoryUrl);
-    // US2AC9 The scraper shuffles the queue to cover more pages with unfinished scrapes
+
     shuffle(URLsQueue);
+    await ScrapePage(driver, url, source);
+    // US2AC9 The scraper shuffles the queue to cover more pages with unfinished scrapes
   }
   // .sendKeys('webdriver', Key.RETURN)
 }
 
 // US1AC3 Scraping is done async to bot operations
-async function RunFullScraping(message: MessageWrapper) {
+async function RunFullScraping(message: MessageWrapper, source: ScrapeSource) {
   const driver = await new Builder().forBrowser(Browser.FIREFOX).build();
 
   // Reset cached entries
   ScrapedURLs = []; URLsQueue = [];
 
   try {
-    await ScrapePage(driver, "https://www.kentavar.bg/prodajba-na-avtomobili-vtora-upotreba", "https://www.kentavar.bg/prodajba-na-avtomobili-vtora-upotreba");
+    await ScrapePage(driver, source.initialUrl, source);
   }
   catch (e) {
     console.error(e);
@@ -153,7 +162,7 @@ async function ConvertAllToMd(message: MessageWrapper) {
     if (!record.htmlfilepath || record.mdfilepath)
       continue;
 
-    const markdownpath = path.resolve(Config.dataPath(), "kentavar_md/" + path.basename(record.htmlfilepath) + ".md");
+    const markdownpath = path.resolve(Config.dataPath(), "md/" + path.basename(record.htmlfilepath) + ".md");
     await ExtractMarkdown(record.htmlfilepath, markdownpath);
     count++;
 
@@ -196,8 +205,9 @@ async function ExtractFields(record: ScrapedPageRecord, content: string, model =
             "year_of_production": { "type": "number" },
             "mileage": { "type": "number" },
             "price": { "type": "number" },
+            "is_automatic_transmission_type": { "type": "boolean" },
           },
-          "required": ["is_single_car_page", "car_brand", "model", "year_of_production", "mileage", "price"],
+          "required": ["is_single_car_page", "car_brand", "model", "year_of_production", "mileage", "price", "is_automatic_transmission_type"],
           "additionalProperties": false
         }
       }
@@ -205,7 +215,7 @@ async function ExtractFields(record: ScrapedPageRecord, content: string, model =
   });
 
   console.log(chatCompletion.id);
-  
+
   // Move update so it doesn't get called with an error from API
   record.mdfilepath = null;
   await ScrapedPageRecordRepository.Update(record);
@@ -216,6 +226,8 @@ async function ExtractFields(record: ScrapedPageRecord, content: string, model =
 
     if (!fields.is_single_car_page)
       return;
+    if (fields.price < 1002)
+      return; // Must be a mistake or a car sold for parts
 
     //US6AC3 Scraper inserts new postings it found in the DB
     //US6AC4 Scraper updates postings coming from the same source
@@ -283,8 +295,12 @@ async function ExtractAllFields(message: MessageWrapper) {
 
 // US1 User initiates scraping with /scrape command
 export async function ProcessScraper(message: MessageWrapper) {
-  if (message.checkRegex(/\/scrape/)) {
-    RunFullScraping(message);
+  if (message.checkRegex(/\/scrape_kentavar/)) {
+    RunFullScraping(message, KentavarSource);
+    return true;
+  }
+  else if (message.checkRegex(/\/scrape_autobg/)) {
+    RunFullScraping(message, AutoBgSource);
     return true;
   }
   // US4AC1 /convert_to_md command converts all fetched html files

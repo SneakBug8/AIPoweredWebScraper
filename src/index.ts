@@ -29,7 +29,8 @@ export function setWaitingForValuePure(callback: (message: MessageWrapper) => an
 export function defaultKeyboard(): TelegramBot.KeyboardButton[][]
 {
     return [
-        [{ text: "/scrape" }, { text: "/convert_to_md" }, { text: "/extract_fields" }],
+        [{ text: "/scrape_kentavar" }, { text: "/scrape_autobg" }],
+        [{ text: "/convert_to_md" }, { text: "/extract_fields" }],
     ];
 }
 
