@@ -352,19 +352,23 @@ async function ExtractAllFields(message: MessageWrapper) {
 
   let count = 0;
 
-  const records = await ScrapedPageRecordRepository.GetAll();
+  const records = await ScrapedPageRecordRepository.GetFieldExtractionQueue();
+
+  console.log(`Began extracting fields from`, records.length, " queued pages.");
+
   shuffle(records);
 
   for (const record of records) {
-    if (!record.mdfilepath)
-      continue;
-
     console.log(`Extracting fields from ${path.basename(record.URL)}`);
-    const contents = fs.readFileSync(record.mdfilepath).toString();
+    const contents = fs.readFileSync(record.mdfilepath as string).toString();
 
     try {
       await Promise.all([ExtractFields(record, contents), Sleep(5000)]);
       count++;
+      // US6AC6 After successfully extracting fields, the scraper deletes MD file and mdfilepath
+      // fs.unlinkSync(record.mdfilepath);
+      record.mdfilepath = null;
+      await ScrapedPageRecordRepository.Update(record);
     }
     catch (e) {
       console.log("Switching to openai/gpt-oss-120b model for reliability");
