@@ -1,6 +1,8 @@
 import { Connection, ConstructNamedConnection } from "../Database";
 import { Entity } from "../entity/Entity";
 import { EntityFactory } from "../entity/EntityFactory";
+import { MapAsync } from "../util/MapAsync";
+import { MIS_DT } from "../util/MIS_DT";
 
 export class ScrapedPageRecord extends Entity {
   public URL = "";
@@ -31,6 +33,30 @@ class ScrapedPageRecordRepositoryClass extends EntityFactory<ScrapedPageRecord> 
 
   public async Cleanup(t: ScrapedPageRecord): Promise<ScrapedPageRecord> {
     return t;
+  }
+
+  public async GetRecentlyScrapedURLs() {
+    const entries = await this.Connection()
+    .whereNotNull("htmlfilepath")
+    .andWhere("LAST_FETCHED", ">", MIS_DT.GetDay() - MIS_DT.OneDay() * 30)
+    .select() as ScrapedPageRecord[];
+    const r = MapAsync.Map(entries, async (x) => await this.Parse(x));
+
+    const urls = entries.map((x) => x.URL);
+
+    return urls;
+  }
+
+  public async GetScrapingQueueURLs() {
+    const entries = await this.Connection()
+    .whereNull("htmlfilepath")
+    .andWhere("LAST_FETCHED", "<=", MIS_DT.GetDay() - MIS_DT.OneDay() * 30)
+    .select() as ScrapedPageRecord[];
+    const r = MapAsync.Map(entries, async (x) => await this.Parse(x));
+
+    const urls = entries.map((x) => x.URL);
+
+    return urls;
   }
 }
 

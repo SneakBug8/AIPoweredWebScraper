@@ -1,7 +1,7 @@
 import { MessageWrapper } from "../MessageWrapper";
 import { MIS_DT } from "../util/MIS_DT";
 import { Config } from "../config";
-import { Builder, Browser, By, Key, until, ThenableWebDriver, WebDriver } from 'selenium-webdriver';
+import { Builder, Browser, By, WebDriver } from 'selenium-webdriver';
 import { Sleep } from "../util/Sleep";
 import * as fs from "fs";
 import * as path from "path";
@@ -11,28 +11,37 @@ import { CarPostingRecord, CarPostingRecordRepository } from "./CarPostingRecord
 import { ScrapedPageRecord, ScrapedPageRecordRepository } from "./ScrapedPage";
 import { AutoBgSource, KentavarSource, ScrapeSource } from "./ScrapeSource";
 
+let driver: WebDriver = null as any;
+
+// Create driver when the bot starts
+(async () => {
+  driver = new Builder().forBrowser(Browser.FIREFOX).build()
+})();
+
 function reply(msg: MessageWrapper, text: string) {
   msg.reply(text);
 }
 
 // US2 The scraper does scraping autonomously
-// US2AC1 The scraper maintains a list of already scraped URLs
-let ScrapedURLs = new Array<string>();
-// US2AC2 The scraper maintains a queue of URLs to scrape
-let URLsQueue = new Array<string>();
 
 async function ScrapePage(driver: WebDriver, url: string, source: ScrapeSource) {
-  // US2AC4 If URL to scrape has already been scraped, the scraper ignores it
-  if (!url)
-    return;
-  if (ScrapedURLs.includes(url)) {
-    console.log(`Skipping already visited page ${url}`);
-    return;
-  }
-  console.log(`Opening page ${url}, queue ${URLsQueue.length}`);
-
   // US2AC5 The scraper waits for the page to load and applies artificial delay to scraping
-  await Promise.race([driver.get(url), Sleep(5000)]);
+  // US2AC10 The scraper repeats tries to open the page until it is succesful
+  let hasEncounteredError = true;
+  let i = 0;
+  while (hasEncounteredError) {
+    try {
+      console.log(`Opening page ${url}, try ${i}`);
+      await Promise.race([driver.get(url), Sleep(10000)]);
+      hasEncounteredError = false;
+    }
+    catch (e) {
+      i++;
+      console.error(`Caught error when opening the page`, e);
+      hasEncounteredError = true;
+      await Sleep(10000);
+    }
+  }
 
   // US4 The scraper saves the html of the page to the filesystem
   const pagepieces = url.split("/");
@@ -42,99 +51,173 @@ async function ScrapePage(driver: WebDriver, url: string, source: ScrapeSource) 
   // US3 The scraper filters links it finds to narrow down search
   // US3AC1 The scraper follows the link only if it is part of the categoryUrl (base url) or initial URL
   // Scrape links before we delete them below to avoid stale elements being referenced
-  for (const element of await driver.findElements(By.css('a'))) {
-    const href = await element.getAttribute("href");
-    if (href && !ScrapedURLs.includes(href) &&
-      (href.includes(source.categoryUrl) || href.includes(source.initialUrl))
-      && !href.includes("sms:") && !href.includes("tel:")
-      && !href.includes("viber:") && !href.includes("about:")) {
-      const sanitizedHref = href.replace("#", "");
-      URLsQueue.push(sanitizedHref);
+  try {
+    const URLsQueuePrev = (await ScrapedPageRecordRepository.GetScrapingQueueURLs()).length;
+
+    for (const element of await driver.findElements(By.css('a'))) {
+      const href1 = await element.getAttribute("href");
+      if (!href1)
+        continue;
+      const href2 = href1.split("#")[0]; // Remove unwanted link clutter
+      const href = href2.split("?")[0];
+
+      if (href.endsWith(".pdf")) {
+        continue;
+      }
+
+      if (href &&
+        (href.includes(source.categoryUrl) || href.includes(source.initialUrl))
+        && !href.includes("sms:") && !href.includes("tel:")
+        && !href.includes("viber:") && !href.includes("about:")) {
+        const link_in_the_db = await ScrapedPageRecordRepository.GetWithURL(href);
+
+        // console.log("Found link on the page", href, "visited:", !!link_in_the_db);
+
+        if (!link_in_the_db) {
+          // Save new link to the DB
+          const linked_page_record = new ScrapedPageRecord();
+          linked_page_record.URL = href;
+          await ScrapedPageRecordRepository.Insert(linked_page_record);
+        }
+      }
     }
+
+    const URLsQueueNext = (await ScrapedPageRecordRepository.GetScrapingQueueURLs()).length;
+    console.log(`Added ${URLsQueueNext - URLsQueuePrev} new links to the DB and scraping queue`);
+  }
+  catch (e) {
+    console.error("Caught error when appending URLs queue", e);
   }
 
-  ScrapedURLs.push(url);
+  // Add page to the scraped URLs even if the body element wasn't found to prevent repeated scraping of fluff pages
+  const existing_record = await ScrapedPageRecordRepository.GetWithURL(url);
+  let record = new ScrapedPageRecord();
+  if (existing_record) {
+    record = existing_record;
+    record.LAST_FETCHED = MIS_DT.GetExact();
+    await ScrapedPageRecordRepository.Update(record);
+  }
+  else {
+    record.URL = url;
+    record.LAST_FETCHED = MIS_DT.GetExact();
+    record = await ScrapedPageRecordRepository.Insert(record);
+  }
 
   // US5 The scraper removes some unwanted elements from the page
-  for (const selector of source.unwantedElementsSelectors) {
-    for (const element of await driver.findElements(By.css(selector))) {
-      await driver.executeScript(`
-      var element = arguments[0];
-      if (element && element.parentNode)
-        element.parentNode.removeChild(element);
-      `, element);
+  try {
+    let removedElements = 0;
+    for (const selector of source.unwantedElementsSelectors) {
+      const script = `
+        var selector = arguments[0];
+        var elements = document.querySelectorAll(selector);
+        var count = 0;
+        for (var i = elements.length - 1; i >= 0; i--) {   // reverse loop avoids index shifting
+          var el = elements[i];
+          if (el && el.parentNode) {
+            el.parentNode.removeChild(el);
+            count++;
+          }
+        }
+        return count;
+      `;
+      const removed = await driver.executeScript(script, selector) as number;
+      removedElements += removed;
     }
   }
-  // Delete empty links
-  /*for (const element of await driver.findElements(By.css('a'))) {
-    const content = await element.getAttribute("innerHTML");
-    console.log(content);
-    if (!content) {
-      await driver.executeScript(`
-      var element = arguments[0];
-      if (element && element.parentNode)
-        element.parentNode.removeChild(element);
-      `, element);
-    }
-  }*/
-
-  if (url.includes(source.categoryUrl)) {
-    // US4AC1 To remove clutter, the scraper saves only meaningful part of the page
-    const pagehtmlpath = path.resolve(Config.dataPath(), source.folderName + "/" + pagename + ".html");
-    const bodyel = await driver.findElement(By.css(source.rootElement));
-    if (!bodyel) {
-      throw new Error("Body element not found");
-    }
-    fs.writeFileSync(pagehtmlpath, await bodyel.getAttribute("innerHTML"));
-
-    // console.log("Saved HTML contents to drive");
-
-    //US2AC10 Scraper maintains metadata records in the database to link URLs with outputted files
-    const existing_record = await ScrapedPageRecordRepository.GetWithURL(url);
-    if (existing_record) {
-      existing_record.LAST_FETCHED = MIS_DT.GetExact();
-      existing_record.htmlfilepath = pagehtmlpath;
-      existing_record.mdfilepath = null;
-      await ScrapedPageRecordRepository.Update(existing_record);
-    }
-    else {
-      const record = new ScrapedPageRecord();
-      record.URL = url;
-      record.LAST_FETCHED = MIS_DT.GetExact();
-      record.htmlfilepath = pagehtmlpath;
-      await ScrapedPageRecordRepository.Insert(record);
-    }
+  catch (e) {
+    console.error("Caught error when removing clutter from the page", e);
   }
 
-  // US4AC1 Only pages with actual cars (that have a buy button)
-  //if ((await driver.getPageSource()).includes("или купи на изплащане"))
-  //  ExtractMarkdown(pagehtmlpath);
+  // US4AC9 The scraper saves only pages matching category URL
+  try {
+    if (url.includes(source.categoryUrl)) {
+      // US4AC1 To remove clutter, the scraper saves only meaningful part of the page
+      const pagehtmlpath = path.resolve(Config.dataPath(), source.folderName + "/" + pagename + ".html");
 
-  await Sleep(3000);
+      let bodyElFound = false;
+      // US4AC10 The scraper tries to find the most precise root element of the page
+      for (const bodyElSelector of source.rootElementSelectors) {
+        const allMatchingElements = await driver.findElements(By.css(bodyElSelector));
+        if (!allMatchingElements.length)
+          continue;
 
-  //US2AC8 The scraper continues scraping until the queue is empty
-  while (URLsQueue.length) {
-    URLsQueue = URLsQueue.sort((a, b) => b.length - a.length);
+        bodyElFound = true;
+        const bodyel = allMatchingElements[0];
 
-    const url = URLsQueue.pop();
-    if (!url)
-      return;
+        fs.writeFileSync(pagehtmlpath, await bodyel.getAttribute("innerHTML"));
+        // console.log("Saved HTML contents to drive");
 
-    await ScrapePage(driver, url, source);
-    // US2AC9 The scraper shuffles the queue to cover more pages with unfinished scrapes
+        //US2AC11 Scraper maintains metadata records in the database to link URLs with outputted files
+        const existing_record = record || await ScrapedPageRecordRepository.GetWithURL(url);
+        if (existing_record) {
+          existing_record.LAST_FETCHED = MIS_DT.GetExact();
+          existing_record.htmlfilepath = pagehtmlpath;
+          existing_record.mdfilepath = null;
+          await ScrapedPageRecordRepository.Update(existing_record);
+        }
+        else {
+          const new_page_record = new ScrapedPageRecord();
+          new_page_record.URL = url;
+          new_page_record.LAST_FETCHED = MIS_DT.GetExact();
+          new_page_record.htmlfilepath = pagehtmlpath;
+          record = await ScrapedPageRecordRepository.Insert(new_page_record);
+        }
+        break;
+      }
+
+      if (!bodyElFound) {
+        console.log("Body element not found, skipping");
+      }
+    }
   }
-  // .sendKeys('webdriver', Key.RETURN)
+  catch (e) {
+    console.error("Caught error when saving the page contents", e);
+  }
+
+  return record;
 }
 
 // US1AC3 Scraping is done async to bot operations
 async function RunFullScraping(message: MessageWrapper, source: ScrapeSource) {
-  const driver = await new Builder().forBrowser(Browser.FIREFOX).build();
+  await Sleep(1000);
 
-  // Reset cached entries
-  ScrapedURLs = []; URLsQueue = [];
+  const ScrapedURLsPrev = (await ScrapedPageRecordRepository.GetRecentlyScrapedURLs()).length;
+  const URLsQueuePrev = (await ScrapedPageRecordRepository.GetScrapingQueueURLs()).length;
+
+  console.log(`Starting scraping |`, ScrapedURLsPrev, " URLs scraped recently |", URLsQueuePrev, " URLs in queue");
 
   try {
-    await ScrapePage(driver, source.initialUrl, source);
+    // US2AC2 The scraper maintains a queue of URLs to scrape in the DB
+    let URLsQueue = [source.initialUrl];
+
+    //US2AC8 The scraper continues scraping until the queue is empty
+    while (URLsQueue.length) {
+      // US2AC1 The scraper maintains a list of already scraped URLs in the DB
+      const ScrapedURLs = await ScrapedPageRecordRepository.GetRecentlyScrapedURLs();
+
+      // US2AC9 The scraper shuffles the queue to cover more pages with unfinished scrapes
+      shuffle(URLsQueue);
+      const url = URLsQueue[URLsQueue.length - 1];
+      URLsQueue.pop();
+
+      if (!url)
+        continue;
+
+      // US2AC4 If URL to scrape has already been scraped, the scraper ignores it
+      if (ScrapedURLs.includes(url) && URLsQueue.length > 0) {
+        console.log(`Skipping already visited page ${url}`);
+        continue;
+      }
+
+      await ScrapePage(driver, url, source);
+      await Sleep(1000 + getRandomInt(10000));
+      // US2AC12 The scraper visits only pages w/o html file scraped or visited long ago
+      URLsQueue = await ScrapedPageRecordRepository.GetScrapingQueueURLs();
+    }
+    //US2AC3 Since the scraper stores all its state in the DB, it is fully resumeable with almost no overhead (it always visits the initial page first)
+
+    if (!URLsQueue.length)
+      console.log("No more pages in queue");
   }
   catch (e) {
     console.error(e);
@@ -142,7 +225,9 @@ async function RunFullScraping(message: MessageWrapper, source: ScrapeSource) {
   finally {
     await driver.quit();
   }
-  reply(message, `Scraped ${ScrapedURLs.length} pages`);
+
+  const ScrapedURLsNew = (await ScrapedPageRecordRepository.GetRecentlyScrapedURLs()).length;
+  reply(message, `Scraped ${ScrapedURLsNew - ScrapedURLsPrev} pages today`);
 }
 
 // US4 The scraper extracts markdown files for processing
@@ -180,13 +265,19 @@ async function ExtractFields(record: ScrapedPageRecord, content: string, model =
   // Filter out non-single car pages
   const url = record.URL;
 
+  // US4AC1 Inlude only pages of relevant type
   if (!content.toLowerCase().includes("цена"))
+    return;
+
+  if (content.toLowerCase().includes("page not found"))
     return;
 
   const messages = [
     { role: 'system', content: "Extract fields from the car sale posting. Take price in EUR." },
     { role: 'user', content: content },
   ];
+
+  await Sleep(30000);
 
   //US6AC1 Scraper extracts car brand, model, production year, mileage, and price
   const chatCompletion = await GroqAPI.chat.completions.create({
@@ -216,10 +307,6 @@ async function ExtractFields(record: ScrapedPageRecord, content: string, model =
   });
 
   console.log(chatCompletion.id);
-
-  // Move update so it doesn't get called with an error from API
-  record.mdfilepath = null;
-  await ScrapedPageRecordRepository.Update(record);
 
   for (const choice of chatCompletion.choices) {
     const fields = JSON.parse(choice.message.content || "{}");
@@ -271,21 +358,21 @@ async function ExtractAllFields(message: MessageWrapper) {
     if (!record.mdfilepath)
       continue;
 
-    console.log(`Extracting fields from file ${path.basename(record.mdfilepath)}`);
+    console.log(`Extracting fields from ${path.basename(record.URL)}`);
     const contents = fs.readFileSync(record.mdfilepath).toString();
 
     try {
-      await Promise.all([ExtractFields(record, contents), Sleep(30000)]);
+      await Promise.all([ExtractFields(record, contents), Sleep(5000)]);
       count++;
     }
     catch (e) {
       console.log("Switching to openai/gpt-oss-120b model for reliability");
       //US6AC5 Scraper switches between two suitable models if error occurs
       try {
-        await Promise.all([ExtractFields(record, contents, "openai/gpt-oss-120b"), Sleep(30000)]);
+        await Promise.all([ExtractFields(record, contents, "openai/gpt-oss-120b"), Sleep(5000)]);
       }
       catch (e) {
-        console.error(e);
+        console.error("Caught error when extracting fields", e);
         await Sleep(15 * 1000 * 60);
       }
     }
