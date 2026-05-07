@@ -18,6 +18,6 @@ export const AutoBgSource : ScrapeSource = {
     folderName: "autobg",
     initialUrl: "https://www.auto.bg/obiavi/avtomobili-dzhipove", 
     categoryUrl: "https://www.auto.bg/obiava",
-    rootElementSelectors: [".container"],
-    unwantedElementsSelectors: ['a:has(>img)', 'img', '.contact', '.popular-brands-models', "iframe"],
+    rootElementSelectors: ["main .container"],
+    unwantedElementsSelectors: ["header", 'a:has(>img)', 'img', '.contact', '.popular-brands-models', "iframe"],
 };

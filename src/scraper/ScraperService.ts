@@ -329,6 +329,7 @@ async function ExtractFields(record: ScrapedPageRecord, content: string, model =
       existing_record.is_automatic_transmission_type = fields?.is_automatic_transmission_type;
       existing_record.source = url;
       await CarPostingRecordRepository.Update(existing_record);
+      console.log(`Updated car posting for ${existing_record.car_brand} ${existing_record.model} ${existing_record.year_of_production}.`);
     }
     else {
       const posting = new CarPostingRecord();
@@ -339,9 +340,9 @@ async function ExtractFields(record: ScrapedPageRecord, content: string, model =
       posting.price = fields?.price;
       posting.is_automatic_transmission_type = fields?.is_automatic_transmission_type;
       //US6AC2 Scraper adds shop that the posting was found from
-      posting.shop = "kentavar.bg";
       posting.source = url;
-      CarPostingRecordRepository.Insert(posting);
+      await CarPostingRecordRepository.Insert(posting);
+      console.log(`Created new car posting for ${posting.car_brand} ${posting.model} ${posting.year_of_production}.`);
     }
 
     return choice.message.content;
