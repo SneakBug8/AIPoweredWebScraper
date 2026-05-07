@@ -8,6 +8,7 @@ export class CarPostingRecord extends Entity {
   public year_of_production = "";
   public mileage = 0;
   public price = 0;
+  public is_automatic_transmission_type : boolean | null = null;
   public shop = "default";
   public source = "";
 }

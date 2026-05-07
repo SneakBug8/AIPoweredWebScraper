@@ -326,7 +326,7 @@ async function ExtractFields(record: ScrapedPageRecord, content: string, model =
       existing_record.year_of_production = fields?.year_of_production;
       existing_record.mileage = fields?.mileage;
       existing_record.price = fields?.price;
-      existing_record.shop = "kentavar.bg";
+      existing_record.is_automatic_transmission_type = fields?.is_automatic_transmission_type;
       existing_record.source = url;
       await CarPostingRecordRepository.Update(existing_record);
     }
@@ -337,6 +337,7 @@ async function ExtractFields(record: ScrapedPageRecord, content: string, model =
       posting.year_of_production = fields?.year_of_production;
       posting.mileage = fields?.mileage;
       posting.price = fields?.price;
+      posting.is_automatic_transmission_type = fields?.is_automatic_transmission_type;
       //US6AC2 Scraper adds shop that the posting was found from
       posting.shop = "kentavar.bg";
       posting.source = url;
