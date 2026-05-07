@@ -11,7 +11,7 @@
         "incremental": true,
         "listEmittedFiles": true,
         "pretty": true,
-        "sourceMap": false,
+        "sourceMap": true,
         "declaration": false,
         "esModuleInterop": true,
         "lib": [

@@ -114,11 +114,12 @@ async function ScrapePage(driver: WebDriver, url: string, source: ScrapeSource) 
 
   //US2AC8 The scraper continues scraping until the queue is empty
   while (URLsQueue.length) {
+    URLsQueue = URLsQueue.sort((a, b) => b.length - a.length);
+
     const url = URLsQueue.pop();
     if (!url)
       return;
 
-    shuffle(URLsQueue);
     await ScrapePage(driver, url, source);
     // US2AC9 The scraper shuffles the queue to cover more pages with unfinished scrapes
   }
