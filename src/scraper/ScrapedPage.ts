@@ -35,6 +35,15 @@ class ScrapedPageRecordRepositoryClass extends EntityFactory<ScrapedPageRecord> 
     return t;
   }
 
+  public async GetMDExtractionQueue() {
+    const entries = await this.Connection()
+    .whereNotNull("htmlfilepath")
+    .whereNull("mdfilepath")
+    .select() as ScrapedPageRecord[];
+    const r = MapAsync.Map(entries, async (x) => await this.Parse(x));
+    return r;
+  }
+
   public async GetFieldExtractionQueue() {
     const entries = await this.Connection()
     .whereNotNull("mdfilepath")

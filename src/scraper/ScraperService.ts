@@ -209,8 +209,8 @@ async function RunFullScraping(message: MessageWrapper, source: ScrapeSource) {
         continue;
       }
 
-      await ScrapePage(driver, url, source);
-      await Sleep(1000 + getRandomInt(10000));
+      await Promise.all([await ScrapePage(driver, url, source), await Sleep(1000 + getRandomInt(15000))]);
+
       // US2AC12 The scraper visits only pages w/o html file scraped or visited long ago
       URLsQueue = await ScrapedPageRecordRepository.GetScrapingQueueURLs();
     }
@@ -244,7 +244,7 @@ async function ExtractMarkdown(pagehtmlpath: string, markdownpath: string) {
 async function ConvertAllToMd(message: MessageWrapper) {
   let count = 0;
 
-  for (const record of await ScrapedPageRecordRepository.GetAll()) {
+  for (const record of await ScrapedPageRecordRepository.GetMDExtractionQueue()) {
     if (!record.htmlfilepath || record.mdfilepath)
       continue;
 
@@ -379,7 +379,7 @@ async function ExtractAllFields(message: MessageWrapper) {
       }
       catch (e) {
         console.error("Caught error when extracting fields", e);
-        await Sleep(15 * 1000 * 60);
+        break;
       }
     }
   }
@@ -389,7 +389,28 @@ async function ExtractAllFields(message: MessageWrapper) {
 
 // US1 User initiates scraping with /scrape command
 export async function ProcessScraper(message: MessageWrapper) {
-  if (message.checkRegex(/\/scrape_kentavar/)) {
+  if (message.checkRegex(/\/status/)) {
+    const q1 = await ScrapedPageRecordRepository.GetRecentlyScrapedURLs();
+    const q2 = await ScrapedPageRecordRepository.GetScrapingQueueURLs();
+    const q3 = await ScrapedPageRecordRepository.GetMDExtractionQueue();
+    const q4 = await ScrapedPageRecordRepository.GetFieldExtractionQueue();
+    const q5 = await CarPostingRecordRepository.GetAll();
+    
+    console.log("Recently scraped:", q1.length,
+      "HTML Scraping Queue:", q2.length,
+      "MD extraction queue:", q3.length,
+      "Field Extraction Queue:", q4.length,
+    "Car Postings collected:", q5.length);
+    message.reply(
+      `Recently scraped: ${q1.length}
+      HTML Scraping Queue: ${q2.length}
+      MD extraction queue: ${q3.length}
+      Field Extraction Queue: ${q4.length}
+      Car Postings collected: ${q5.length}`
+    )
+    return true;
+  }
+  else if (message.checkRegex(/\/scrape_kentavar/)) {
     RunFullScraping(message, KentavarSource);
     return true;
   }
