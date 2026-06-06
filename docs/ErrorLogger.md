@@ -13,3 +13,7 @@ The `ErrorLogger` provides a standardized way to log and format errors throughou
 ## Benefits over Market Solutions
 -   **Minimalist:** No heavy logging frameworks (like Winston or Bunyan) required.
 -   **Zero Configuration:** Works out of the box without needing to configure log rotations, transports, or levels.
+
+## Critiques & Suggestions for Improvement
+-   **Critique:** The double-parsing logic (`JSON.parse(JSON.parse(e))`) is a fragile hack that suggests underlying issues with how errors are being stringified elsewhere in the system. Relying solely on console output makes it difficult to implement automated alerts or centralize logs.
+-   **Suggestion:** Standardize error creation across the app to avoid double-encoding. Integrate a logging transport (like `winston-transport`) to allow for multi-destination logging (e.g., console, file, and an external monitoring service like Sentry or Datadog).

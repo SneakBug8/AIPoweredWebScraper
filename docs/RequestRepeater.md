@@ -14,3 +14,7 @@ The `RequestRepeater` is a utility designed to handle flaky network requests or 
 ## Benefits over Market Solutions
 -   **Simplicity:** A single, easy-to-use wrapper function for any async operation.
 -   **Built-in Concurrency Control:** Unlike most retry libraries, it includes basic protection against request storms out of the box.
+
+## Critiques & Suggestions for Improvement
+-   **Critique:** The global `requestrepeating` lock is extremely restrictive. It prevents *any* two retriable requests from running in parallel, even if they are targeting completely different services.
+-   **Suggestion:** Implement more granular locking (e.g., per-domain or per-service locks). Use a more sophisticated circuit breaker pattern (like `opossum`) to handle systemic failures more gracefully.

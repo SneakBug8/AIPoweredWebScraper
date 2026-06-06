@@ -15,3 +15,7 @@ The `BackupService` ensures the persistence of application data by creating peri
 -   **Zero Cost:** Utilizes existing infrastructure (FTP) rather than expensive cloud backup services.
 -   **Self-Contained:** The backup logic is part of the application, ensuring that configuration and data are always backed up together.
 -   **Asynchronous Processing:** Backups run in the background without blocking the bot's responsiveness to users.
+
+## Critiques & Suggestions for Improvement
+-   **Critique:** Performing a full ZIP archive of the data directory every few days is inefficient as the data grows. FTP is also an unencrypted protocol in its standard form, which could expose sensitive data during transit.
+-   **Suggestion:** Implement incremental backups or use a tool like `rsync` for more efficient data transfer. Switch to SFTP or FTPS to ensure data is encrypted while in transit to the remote server.

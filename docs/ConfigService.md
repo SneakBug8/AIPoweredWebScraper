@@ -14,3 +14,7 @@ The `ConfigService` acts as the central repository for all application settings 
 ## Benefits over Market Solutions
 -   **Type Safety:** By wrapping environment variables in a class, the application can provide better type hinting and validation than raw `process.env` access.
 -   **Centralization:** Makes it easy to see all external dependencies (APIs, paths, credentials) in a single file.
+
+## Critiques & Suggestions for Improvement
+-   **Critique:** The `ConfigService` handles a lot of concerns, from path resolution to IP discovery and secret management. It also relies on a mix of methods and properties for configuration access, which is inconsistent.
+-   **Suggestion:** Split the configuration into logical modules (e.g., `PathConfig`, `ApiConfig`, `AuthConfig`). Standardize on a single way to access configuration values (e.g., all getters or all read-only properties). Implement validation at startup to ensure all required environment variables are present and correctly formatted.

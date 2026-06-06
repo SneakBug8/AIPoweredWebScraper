@@ -14,3 +14,7 @@ The `SchedulerService` manages the execution of recurring tasks based on the tim
 ## Benefits over Market Solutions
 -   **Zero External Dependencies:** No need for `node-cron` or complex scheduling libraries.
 -   **Integrated State:** Since it's built into the app, it can easily use the app's own persistence mechanisms to track execution history.
+
+## Critiques & Suggestions for Improvement
+-   **Critique:** The hourly granularity and internal heartbeat mean that a task might be delayed by up to 15 minutes depending on when the heartbeat runs. There is also no support for "missed" tasks if the bot was offline during the scheduled hour.
+-   **Suggestion:** Improve the heartbeat frequency and implement a "catch-up" mechanism that checks for tasks that should have run while the bot was down.

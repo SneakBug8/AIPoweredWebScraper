@@ -17,3 +17,7 @@ Used to determine the current public IP address of the bot instance.
 Provides robust string comparison.
 - **Approach:** Often used for case-insensitive or normalized string comparisons.
 - **Benefits:** Ensures consistent behavior when comparing user input or scraped data across different sources.
+
+## Critiques & Suggestions for Improvement
+-   **Critique:** Many of these utilities are scattered across the `util/` directory without a clear organizational structure. Some, like `Sleep`, are so basic they might be better replaced by standard Node.js utilities.
+-   **Suggestion:** Consolidate related utilities into logical modules. For `Sleep`, use the built-in `require('timers/promises').setTimeout` available in modern Node.js versions.

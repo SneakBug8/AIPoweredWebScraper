@@ -14,3 +14,7 @@ The `MIS_DT` (Management Information System Date-Time) utility provides a standa
 ## Benefits over Market Solutions
 -   **Domain-Specific:** Tailored specifically to the needs of the assistant, providing exactly the formats and utilities needed without the bloat of a full library like Moment.js.
 -   **Readability:** Replaces complex `Date` arithmetic with human-readable methods like `MIS_DT.GetDay()`.
+
+## Critiques & Suggestions for Improvement
+-   **Critique:** The utility is built on the native `Date` object, which is notoriously difficult to work with for timezone-aware operations. The class lacks support for custom timezones, defaulting to the server's local time.
+-   **Suggestion:** Migrate the internal implementation to a more robust library like `date-fns` or `Day.js` while maintaining the simplified `MIS_DT` API. This would provide better support for timezones and more complex date calculations.

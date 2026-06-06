@@ -14,3 +14,7 @@ The `EntityService` (composed of `Entity` base class and `EntityFactory`) provid
 ## Benefits over Market Solutions
 -   **Consistency:** Ensures that every table in the database has a standardized set of metadata fields.
 -   **Simplicity:** Minimalist implementation that avoids the complexity of heavy ORMs while providing the essential features for data tracking.
+
+## Critiques & Suggestions for Improvement
+-   **Critique:** The `Entity` class manually manages timestamps, which can lead to inconsistencies if a developer forgets to update the `UPDATED_DT` field in a specific repository method.
+-   **Suggestion:** Leverage Knex hooks or a lightweight ORM layer to automatically handle timestamp updates. Consider adding a formal `version` field to entities to support optimistic locking and prevent lost updates in concurrent scenarios.

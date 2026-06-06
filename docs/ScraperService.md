@@ -18,3 +18,7 @@ The `ScraperService` is responsible for autonomously crawling car sales websites
 -   **Flexible Parsing:** Traditional scrapers rely on brittle CSS selectors that break when a site's layout changes. By using LLMs to "read" the Markdown, this service is highly resilient to UI updates.
 -   **End-to-End Automation:** Seamlessly bridges the gap between raw web data and a structured database without manual intervention.
 -   **Privacy-First:** Since it runs locally, you don't need to share your scraping patterns or data with SaaS scraping platforms.
+
+## Critiques & Suggestions for Improvement
+-   **Critique:** The current implementation of Selenium is resource-heavy, especially when running multiple instances. The manual delay system, while effective, is somewhat arbitrary and doesn't account for actual server load or specific site response times.
+-   **Suggestion:** Consider migrating to a lighter-weight scraping library like `playwright` or `puppeteer-core` for better performance. Implement a more dynamic rate-limiting system based on target site response headers (like `Retry-After`) and actual crawling history.

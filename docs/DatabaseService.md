@@ -15,3 +15,7 @@ The `DatabaseService` provides a structured data layer using Knex.js and SQLite.
 -   **Portability:** The entire database is a single file, making it trivial to move between servers or include in backups.
 -   **Efficiency:** Minimal memory footprint compared to full database servers.
 -   **Ease of Development:** No need to manage migrations or complex schemas via a separate CLI; the database structure can be managed directly through the code.
+
+## Critiques & Suggestions for Improvement
+-   **Critique:** While code-managed schemas are convenient, the lack of formal migrations makes it difficult to track schema changes over time or safely roll back updates in a production environment.
+-   **Suggestion:** Introduce a formal migration system (like Knex Migrations) to version-control the database schema. This would improve reproducibility and make it easier for multiple developers to collaborate on the project.

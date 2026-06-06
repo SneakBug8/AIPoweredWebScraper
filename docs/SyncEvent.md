@@ -14,3 +14,7 @@ The `SyncEvent` utility provides a simple, serial asynchronous event emitter.
 ## Benefits over Market Solutions
 -   **Async-First:** Built from the ground up for `async/await`, avoiding the pitfalls of trying to use async functions with synchronous event emitters.
 -   **Lightweight Middleware:** Provides basic middleware-like functionality (short-circuiting) without the overhead of a full-blown framework.
+
+## Critiques & Suggestions for Improvement
+-   **Critique:** The current implementation doesn't provide a way to prioritize listeners or handle errors within a specific listener without crashing the entire emission chain.
+-   **Suggestion:** Add support for listener priorities and implement a `try-catch` wrapper around listener execution to allow the chain to continue (or fail gracefully) if a single listener throws an error.

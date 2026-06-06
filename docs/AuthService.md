@@ -15,3 +15,7 @@ The service uses a two-tiered authentication strategy:
 -   **Zero-Overhead:** No need for external OAuth providers or complex user registration flows.
 -   **Privacy:** All authentication logic is local to the instance, ensuring that user data isn't shared with third-party auth services.
 -   **Instant Access:** Whitelisting provides a seamless experience for the primary owner while still allowing controlled access for others.
+
+## Critiques & Suggestions for Improvement
+-   **Critique:** The reliance on a single, shared static password in environment variables is a security bottleneck. Furthermore, the lack of rate limiting on the `/auth` command makes the system vulnerable to brute-force attacks.
+-   **Suggestion:** Implement a more robust multi-user system with hashed passwords in the database. Add an exponential backoff or temporary lockout for failed authentication attempts to enhance security.

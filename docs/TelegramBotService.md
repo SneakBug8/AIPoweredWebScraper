@@ -16,3 +16,7 @@ The `TelegramBotService` (centered in `src/index.ts`) is the primary interface t
 -   **Unified Interface:** Acts as a single point of control for scraping, backups, and data extraction.
 -   **Instant Notifications:** The bot can proactively message the user about task completion or errors.
 -   **Low Friction:** No need for a custom app or website for most operations; everything is accessible via a standard messaging app.
+
+## Critiques & Suggestions for Improvement
+-   **Critique:** The `messageHandler` in `src/index.ts` is becoming a "God Function" that handles authentication, command routing, and state management. This makes the core bot logic difficult to test and maintain.
+-   **Suggestion:** Refactor the message handling logic into a dedicated `Router` class. Use a more formal command registration system to decouple individual command logic from the main application entry point.
