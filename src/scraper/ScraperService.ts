@@ -27,20 +27,27 @@ function reply(msg: MessageWrapper, text: string) {
 async function ScrapePage(driver: WebDriver, url: string, source: ScrapeSource) {
   // US2AC5 The scraper waits for the page to load and applies artificial delay to scraping
   // US2AC10 The scraper repeats tries to open the page until it is succesful
-  let hasEncounteredError = true;
+  let hasEncounteredError = "No content"; // must resolve to true to enter cycle
   let i = 0;
-  while (hasEncounteredError) {
+  // US40AC20 The scraper tries to open the page for 5 times before returning the error
+  while (hasEncounteredError && i < 5) {
     try {
       console.log(`Opening page ${url}, try ${i}`);
-      await Promise.race([driver.get(url), Sleep(10000)]);
-      hasEncounteredError = false;
+      driver.get(url);
+      await Sleep(1500);
+      hasEncounteredError = "";
+      await Promise.race([driver.get(url), async () => { await Sleep(10000); hasEncounteredError = "Page load timeout" }]);
+      await Sleep(1000);
     }
     catch (e) {
       i++;
-      console.error(`Caught error when opening the page`, e);
-      hasEncounteredError = true;
-      await Sleep(10000);
+      // console.error(`Caught error when opening the page`, e);
+      hasEncounteredError = JSON.stringify(e);
+      await Sleep(3000);
     }
+  }
+  if (hasEncounteredError) {
+    throw new Error("Error opening the page: " + hasEncounteredError);
   }
 
   // US2AC13 When the page returns 404 Not Found, it is skipped and its record deleted
@@ -238,7 +245,8 @@ async function RunFullScraping(message: MessageWrapper, source: ScrapeSource) {
       await Promise.all([await ScrapePage(driver, url, source), await Sleep(1000 + getRandomInt(15000))]);
 
       // US2AC12 The scraper visits only pages w/o html file scraped or visited long ago
-      URLsQueue = await ScrapedPageRecordRepository.GetScrapingQueueURLs();
+      // US3AC1 Only pages of the currently scraped source are processed
+      URLsQueue = await ScrapedPageRecordRepository.GetScrapingQueueURLs([source.categoryUrl, source.initialUrl]);
     }
     //US2AC3 Since the scraper stores all its state in the DB, it is fully resumeable with almost no overhead (it always visits the initial page first)
 
@@ -247,9 +255,6 @@ async function RunFullScraping(message: MessageWrapper, source: ScrapeSource) {
   }
   catch (e) {
     console.error(e);
-  }
-  finally {
-    await driver.quit();
   }
 
   const ScrapedURLsNew = (await ScrapedPageRecordRepository.GetRecentlyScrapedURLs()).length;
@@ -421,12 +426,12 @@ export async function ProcessScraper(message: MessageWrapper) {
     const q3 = await ScrapedPageRecordRepository.GetMDExtractionQueue();
     const q4 = await ScrapedPageRecordRepository.GetFieldExtractionQueue();
     const q5 = await CarPostingRecordRepository.GetAll();
-    
+
     console.log("Recently scraped:", q1.length,
       "HTML Scraping Queue:", q2.length,
       "MD extraction queue:", q3.length,
       "Field Extraction Queue:", q4.length,
-    "Car Postings collected:", q5.length);
+      "Car Postings collected:", q5.length);
     message.reply(
       `Recently scraped: ${q1.length}
       HTML Scraping Queue: ${q2.length}

@@ -54,8 +54,7 @@ class ScrapedPageRecordRepositoryClass extends EntityFactory<ScrapedPageRecord> 
 
   public async GetRecentlyScrapedURLs() {
     const entries = await this.Connection()
-    .whereNotNull("htmlfilepath")
-    .andWhere("LAST_FETCHED", ">", MIS_DT.GetDay() - MIS_DT.OneDay() * 30)
+    .where("LAST_FETCHED", ">", MIS_DT.GetDay() - MIS_DT.OneDay() * 30)
     .select() as ScrapedPageRecord[];
     const r = MapAsync.Map(entries, async (x) => await this.Parse(x));
 
@@ -64,14 +63,19 @@ class ScrapedPageRecordRepositoryClass extends EntityFactory<ScrapedPageRecord> 
     return urls;
   }
 
-  public async GetScrapingQueueURLs() {
+  public async GetScrapingQueueURLs(urlFilters: string[] = []) {
     const entries = await this.Connection()
     .whereNull("htmlfilepath")
     .andWhere("LAST_FETCHED", "<=", MIS_DT.GetDay() - MIS_DT.OneDay() * 30)
     .select() as ScrapedPageRecord[];
     const r = MapAsync.Map(entries, async (x) => await this.Parse(x));
 
-    const urls = entries.map((x) => x.URL);
+    // When filters are passed, only URLs matching at least one of them are queued
+    const filteredEntries = urlFilters.length
+      ? entries.filter((entry) => urlFilters.some((filter) => entry.URL.includes(filter)))
+      : entries;
+
+    const urls = filteredEntries.map((x) => x.URL);
 
     return urls;
   }
