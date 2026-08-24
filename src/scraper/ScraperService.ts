@@ -43,6 +43,32 @@ async function ScrapePage(driver: WebDriver, url: string, source: ScrapeSource) 
     }
   }
 
+  // US2AC13 When the page returns 404 Not Found, it is skipped and its record deleted
+  try {
+    const statusCode = await driver.executeScript(
+      "return window.performance.getEntriesByType('navigation')[0].responseStatus;"
+    ) as number;
+
+    if (statusCode === 404) {
+      console.log(`Page ${url} returned 404 Not Found, removing from scraping`);
+
+      //const existing_record = await ScrapedPageRecordRepository.GetWithURL(url);
+      //if (existing_record) {
+      //  await ScrapedPageRecordRepository.Delete(existing_record);
+      //  console.log(`Deleted scraped page record for ${url}`);
+      //}
+
+      return null;
+    }
+    else if (statusCode !== 200) {
+      console.log(`Page ${url} returned ${statusCode} code, skipping`);
+      return null;
+    }
+  }
+  catch (e) {
+    console.error("Caught error when checking page status code", e);
+  }
+
   // US4 The scraper saves the html of the page to the filesystem
   const pagepieces = url.split("/");
   const pagename = pagepieces[pagepieces.length - 1].replace("?", "-").replace(".", "-").replace("=", "-"); //await driver.getTitle();

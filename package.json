@@ -47,6 +47,7 @@
   "scripts": {
     "start": "node bin/index.js",
     "build": "tsc",
+    "run": "ts-node src/index.ts --files src",
     "dev": "nodemon --exec \"ts-node src/index.ts --files src\" -V -w src -e ts",
     "test": "mocha -r ts-node/register src/**/*.test.ts -r src/test/testloader.ts --exit",
     "coverage": "nyc -r lcov -e .ts -x \"*.test.ts\" npm run test"
