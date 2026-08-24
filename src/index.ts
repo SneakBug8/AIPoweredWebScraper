@@ -12,6 +12,7 @@ import { Scheduler } from "./util/Scheduler";
 import { ErrorLogger } from "./util/ErrorLogger";
 import { SyncEvent } from "./util/SyncEvent";
 import { ProcessCarScraper } from "./carpostings/CarPostingService";
+import { ProcessJobPosting } from "./jobpostings/JobPostingService";
 
 let waitingCallback: ((message: MessageWrapper) => any) | null = null;
 
@@ -30,7 +31,8 @@ export function defaultKeyboard(): TelegramBot.KeyboardButton[][]
 {
     return [
         [{ text: "/scrape_kentavar" }, { text: "/scrape_autobg" }],
-        [{ text: "/convert_to_md" }, { text: "/extract_fields" }],
+        [{ text: "/scrape_beeline" },],
+        [{ text: "/status" }, { text: "/convert_to_md" }, { text: "/extract_fields" }],
     ];
 }
 
@@ -149,6 +151,7 @@ class App
 
             const listeners = [
                 ProcessCarScraper,
+                ProcessJobPosting,
                 ProcessBackup,
             ];
 
@@ -202,7 +205,6 @@ class App
 }
 
 export const Server = new App();
-
 
 console.log("Bot started");
 

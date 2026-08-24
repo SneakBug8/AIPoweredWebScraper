@@ -95,7 +95,7 @@ async function ScrapePage(driver: WebDriver, url: string, source: ScrapeSource) 
       }
 
       if (href &&
-        (href.includes(source.categoryUrl) || href.includes(source.initialUrl))
+        (href.includes(source.categoryUrl) || urlInArrayPartial(href, source.initialURLs))
         && !href.includes("sms:") && !href.includes("tel:")
         && !href.includes("viber:") && !href.includes("about:")) {
         const link_in_the_db = await ScrapedPageRecordRepository.GetWithURL(href);
@@ -210,6 +210,13 @@ async function ScrapePage(driver: WebDriver, url: string, source: ScrapeSource) 
 export async function RunFullScraping(source: ScrapeSource) {
   await Sleep(1000);
 
+  // US2AC15 The scraper doesn't process a single source more than once simultaneously
+  if (source.isBusy) {
+    Server.SendMessage(`Source ${source.folderName} is already processed`);
+    return;
+  }
+  source.isBusy = true;
+
   const ScrapedURLsPrev = (await ScrapedPageRecordRepository.GetRecentlyScrapedURLs()).length;
   const URLsQueuePrev = (await ScrapedPageRecordRepository.GetScrapingQueueURLs()).length;
 
@@ -217,7 +224,7 @@ export async function RunFullScraping(source: ScrapeSource) {
 
   try {
     // US2AC2 The scraper maintains a queue of URLs to scrape in the DB
-    let URLsQueue = [source.initialUrl];
+    let URLsQueue = [...source.initialURLs];
 
     //US2AC8 The scraper continues scraping until the queue is empty
     while (URLsQueue.length) {
@@ -242,7 +249,7 @@ export async function RunFullScraping(source: ScrapeSource) {
 
       // US2AC12 The scraper visits only pages w/o html file scraped or visited long ago
       // US3AC1 Only pages of the currently scraped source are processed
-      URLsQueue = await ScrapedPageRecordRepository.GetScrapingQueueURLs([source.categoryUrl, source.initialUrl]);
+      if (!URLsQueue.length) URLsQueue = await ScrapedPageRecordRepository.GetScrapingQueueURLs([source.categoryUrl, ...source.initialURLs]);
     }
     //US2AC3 Since the scraper stores all its state in the DB, it is fully resumeable with almost no overhead (it always visits the initial page first)
 
@@ -251,6 +258,9 @@ export async function RunFullScraping(source: ScrapeSource) {
   }
   catch (e) {
     console.error(e);
+  }
+  finally {
+    source.isBusy = false;
   }
 
   const ScrapedURLsNew = (await ScrapedPageRecordRepository.GetRecentlyScrapedURLs()).length;
@@ -275,7 +285,7 @@ export async function ConvertAllToMd() {
     if (!record.htmlfilepath || record.mdfilepath)
       continue;
 
-    const markdownpath = path.resolve(Config.dataPath(), "md/" + path.basename(record.htmlfilepath) + ".md");
+    const markdownpath = path.resolve(Config.dataPath(), "md/" + MIS_DT.SortableFormat(MIS_DT.GetExact()) + path.basename(record.htmlfilepath) + ".md");
     await ExtractMarkdown(record.htmlfilepath, markdownpath);
     count++;
 
@@ -286,6 +296,13 @@ export async function ConvertAllToMd() {
   Server.SendMessage(`Converted ${count} files to Markdown`);
 }
 
+function urlInArrayPartial(href: string, array: string[]) {
+  for (const a of array) {
+    if (href.includes(a))
+      return true;
+  }
+  return false;
+}
 
 
 function getRandomInt(max: number) {

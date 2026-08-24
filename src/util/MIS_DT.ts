@@ -71,6 +71,11 @@ export class MIS_DT
     return dateFormat(new Date(mis_dt), "dd.mm.yyyy");
   }
 
+  public static SortableFormat(mis_dt: number)
+  {
+    return dateFormat(new Date(mis_dt), "yyyymmdd");
+  }
+
   public static FormatTime(mis_dt: number)
   {
     return dateFormat(new Date(mis_dt), "HH:MM");
