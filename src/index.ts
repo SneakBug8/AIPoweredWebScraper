@@ -11,7 +11,7 @@ import { Sleep } from "./util/Sleep";
 import { Scheduler } from "./util/Scheduler";
 import { ErrorLogger } from "./util/ErrorLogger";
 import { SyncEvent } from "./util/SyncEvent";
-import { ProcessScraper } from "./scraper/ScraperService";
+import { ProcessCarScraper } from "./carpostings/CarPostingService";
 
 let waitingCallback: ((message: MessageWrapper) => any) | null = null;
 
@@ -148,7 +148,7 @@ class App
             }
 
             const listeners = [
-                ProcessScraper,
+                ProcessCarScraper,
                 ProcessBackup,
             ];
 

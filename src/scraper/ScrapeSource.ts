@@ -21,3 +21,11 @@ export const AutoBgSource : ScrapeSource = {
     rootElementSelectors: ["main .container"],
     unwantedElementsSelectors: ["header", 'a:has(>img)', 'img', '.contact', '.popular-brands-models', "iframe"],
 };
+
+export const JobBeeline : ScrapeSource = {
+    folderName: "jobbeeline",
+    initialUrl: "https://job.beeline.ru/vacancies", 
+    categoryUrl: "https://job.beeline.ru/vacancies",
+    rootElementSelectors: ["class^='_vacancy'"],
+    unwantedElementsSelectors: ["header", 'a:has(>img)', 'img', "class^='_footer'", "class^='_header'", "class^='_cookies'", "iframe"],
+};
