@@ -72,6 +72,31 @@ async function ScrapePage(driver: WebDriver, url: string, source: ScrapeSource) 
     console.error("Caught error when checking page status code", e);
   }
 
+  // US2AC14 The scraper scrolls the page down to trigger infinite loading until its height stops changing
+  try {
+    const maxScrollIterations = 25; // Safety cap against pages that never stop growing
+    let previousHeight = await driver.executeScript("return document.body.scrollHeight") as number;
+    let iterations = 0;
+
+    while (iterations < maxScrollIterations) {
+      await driver.executeScript("window.scrollTo(0, document.body.scrollHeight);");
+      await Sleep(1000);
+
+      const currentHeight = await driver.executeScript("return document.body.scrollHeight") as number;
+      iterations++;
+
+      if (currentHeight <= previousHeight) {
+        break;
+      }
+
+      console.log(`Page ${url} lazy-loaded more content | height ${previousHeight} -> ${currentHeight} | try ${iterations}`);
+      previousHeight = currentHeight;
+    }
+  }
+  catch (e) {
+    console.error("Caught error when triggering infinite loading", e);
+  }
+
   // US4 The scraper saves the html of the page to the filesystem
   const pagepieces = url.split("/");
   const pagename = pagepieces[pagepieces.length - 1].replace("?", "-").replace(".", "-").replace("=", "-"); //await driver.getTitle();
@@ -239,8 +264,8 @@ export async function RunFullScraping(source: ScrapeSource) {
       if (!url)
         continue;
 
-      // US2AC4 If URL to scrape has already been scraped, the scraper ignores it
-      if (ScrapedURLs.includes(url) && URLsQueue.length > 0) {
+      // US2AC4 If URL to scrape has already been scraped and it's not one of the initial URLs, the scraper ignores it
+      if (ScrapedURLs.includes(url) && URLsQueue.length > 0 && !source.initialURLs.includes(url)) {
         console.log(`Skipping already visited page ${url}`);
         continue;
       }

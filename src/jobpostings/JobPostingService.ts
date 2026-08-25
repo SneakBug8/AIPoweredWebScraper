@@ -10,3 +10,5 @@ export async function ProcessJobPosting(message: MessageWrapper) {
   }
   return false;
 }
+
+// TODO: Read new pages from source, filter relevant to the user and send notifications
