@@ -2,15 +2,13 @@ import archiver = require("archiver");
 import * as fs from "fs";
 import * as path from "path";
 import { Config } from "../config";
-import { Server, setWaitingForValue } from "..";
 import TelegramBot = require("node-telegram-bot-api");
 import { BackupData } from "./BackupData";
 import { MessageWrapper } from "../MessageWrapper";
-import { BotAPI } from "../api/bot";
 import { Sleep } from "../util/Sleep";
-import { IntervalsExecution } from "../util/IntervalsExecution";
 import { Scheduler } from "../util/Scheduler";
 import { Client } from "basic-ftp"
+import { TgBotServer } from "../App";
 
 const backuppath = path.resolve(Config.dataPath(), "../backup.zip");
 
@@ -67,7 +65,7 @@ async function CreateBackup(force: boolean = false) {
 
     await MakeBackupArchive();
 
-    Server.SendMessage("Backup archive created");
+    TgBotServer.SendMessage("Backup archive created");
 
     await Sleep(1000);
 
@@ -79,7 +77,7 @@ async function CreateBackup(force: boolean = false) {
 
     console.log("[Backup] Backup archive uploaded");
 
-    Server.SendMessage("Backup archive uploaded");
+    TgBotServer.SendMessage("Backup archive uploaded");
 
     BackupSave();
     return "Backup archive created and uploaded";
@@ -134,12 +132,12 @@ async function PublishBackupArchive(verbose: boolean = false) {
     await c.ensureDir(fragments);
     await c.uploadFrom(input, destpath);
 
-    Server.SendMessage(`Uploaded ${backuppath} to ${destpath}`)
-      .then((x) => x.deleteAfterTime(1));
+    TgBotServer.SendMessage(`Uploaded ${backuppath} to ${destpath}`)
+    .forEach((x) => x.then((y) => y?.deleteAfterTime(1)));
   }
   catch (e) {
     console.error(e);
-    Server.SendMessage(JSON.stringify(e) || "null");
+    TgBotServer.SendMessage(JSON.stringify(e) || "null");
   }
 }
 

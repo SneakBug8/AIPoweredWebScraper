@@ -8,8 +8,8 @@ import * as path from "path";
 import TurndownService from 'turndown';
 import { ScrapedPageRecord, ScrapedPageRecordRepository } from "./ScrapedPage";
 import { ScrapeSource } from "./ScrapeSource";
-import { Server } from "..";
 import { shuffleArray } from "../util/shuffeArray";
+import { TgBotServer } from "../App";
 
 let driver: WebDriver = null as any;
 
@@ -212,7 +212,7 @@ export async function RunFullScraping(source: ScrapeSource) {
 
   // US2AC15 The scraper doesn't process a single source more than once simultaneously
   if (source.isBusy) {
-    Server.SendMessage(`Source ${source.folderName} is already processed`);
+    TgBotServer.SendMessage(`Source ${source.folderName} is already processed`);
     return;
   }
   source.isBusy = true;
@@ -249,7 +249,8 @@ export async function RunFullScraping(source: ScrapeSource) {
 
       // US2AC12 The scraper visits only pages w/o html file scraped or visited long ago
       // US3AC1 Only pages of the currently scraped source are processed
-      if (!URLsQueue.length) URLsQueue = await ScrapedPageRecordRepository.GetScrapingQueueURLs([source.categoryUrl, ...source.initialURLs]);
+      // Merge new queue from the DB with cached queue without duplicates
+      if (!URLsQueue.length) URLsQueue = new Array(...new Set([...URLsQueue, ...await ScrapedPageRecordRepository.GetScrapingQueueURLs([source.categoryUrl, ...source.initialURLs])]));
     }
     //US2AC3 Since the scraper stores all its state in the DB, it is fully resumeable with almost no overhead (it always visits the initial page first)
 
@@ -264,7 +265,7 @@ export async function RunFullScraping(source: ScrapeSource) {
   }
 
   const ScrapedURLsNew = (await ScrapedPageRecordRepository.GetRecentlyScrapedURLs()).length;
-  Server.SendMessage(`Scraped ${ScrapedURLsNew - ScrapedURLsPrev} pages today`);
+  TgBotServer.SendMessage(`Scraped ${ScrapedURLsNew - ScrapedURLsPrev} pages today`);
 }
 
 // US4 The scraper extracts markdown files for processing
@@ -293,7 +294,7 @@ export async function ConvertAllToMd() {
     await ScrapedPageRecordRepository.Update(record);
   }
 
-  Server.SendMessage(`Converted ${count} files to Markdown`);
+  TgBotServer.SendMessage(`Converted ${count} files to Markdown`);
 }
 
 function urlInArrayPartial(href: string, array: string[]) {
