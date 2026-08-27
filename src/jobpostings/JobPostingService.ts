@@ -1,6 +1,6 @@
 import { MessageWrapper } from "../MessageWrapper";
 import { RunFullScraping } from "../scraper/ScraperService";
-import { JobBeeline as JobBeelineSource } from "../scraper/ScrapeSource";
+import { JobBeelineSource } from "../scraper/ScrapeSource";
 
 // US1 User initiates scraping with /scrape command
 export async function ProcessJobPosting(message: MessageWrapper) {

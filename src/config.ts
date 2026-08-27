@@ -69,7 +69,7 @@ class ConfigClass
 
   public port()
   {
-    return 3000;
+    return process.env.port;
   }
 
   public CockpitURL()

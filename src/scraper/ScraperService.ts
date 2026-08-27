@@ -16,6 +16,11 @@ let driver: WebDriver = null as any;
 // Create driver when the bot starts
 (async () => {
   driver = new Builder().forBrowser(Browser.FIREFOX).build()
+  await driver.manage().setTimeouts({
+    implicit: 10_000, // element lookup timeout
+    pageLoad: 60_000, // page-load timeout
+    script: 30_000    // executeAsyncScript timeout
+  });
 })();
 
 // US2 The scraper does scraping autonomously
@@ -30,7 +35,7 @@ async function ScrapePage(driver: WebDriver, url: string, source: ScrapeSource) 
     try {
       console.log(`Opening page ${url}, try ${i}`);
       driver.get(url);
-      await Sleep(1500);
+      await Sleep(1250);
       hasEncounteredError = "";
       await Promise.race([driver.get(url), async () => { await Sleep(10000); hasEncounteredError = "Page load timeout" }]);
       await Sleep(1000);
@@ -97,10 +102,6 @@ async function ScrapePage(driver: WebDriver, url: string, source: ScrapeSource) 
     console.error("Caught error when triggering infinite loading", e);
   }
 
-  // US4 The scraper saves the html of the page to the filesystem
-  const pagepieces = url.split("/");
-  const pagename = pagepieces[pagepieces.length - 1].replace("?", "-").replace(".", "-").replace("=", "-"); //await driver.getTitle();
-
   // US2AC7 The scraper adds a[href] links on the page to the queue
   // US3 The scraper filters links it finds to narrow down search
   // US3AC1 The scraper follows the link only if it is part of the categoryUrl (base url) or initial URL
@@ -143,6 +144,14 @@ async function ScrapePage(driver: WebDriver, url: string, source: ScrapeSource) 
     console.error("Caught error when appending URLs queue", e);
   }
 
+  url = url.replace(/\/+$/, "");
+
+  const pagepieces = url.split("/");
+  const pagename = pagepieces[pagepieces.length - 1]
+    .replace(/\?/g, "-")
+    .replace(/\./g, "-")
+    .replace(/=/g, "-") || await driver.getTitle();
+
   // Add page to the scraped URLs even if the body element wasn't found to prevent repeated scraping of fluff pages
   const existing_record = await ScrapedPageRecordRepository.GetWithURL(url);
   let record = new ScrapedPageRecord();
@@ -157,7 +166,13 @@ async function ScrapePage(driver: WebDriver, url: string, source: ScrapeSource) 
     record = await ScrapedPageRecordRepository.Insert(record);
   }
 
+  // Preliminary exit for pages that aren't saved
+  if (!url.includes(source.categoryUrl) || !await source.filter(driver)) {
+    return record;
+  }
+
   // US5 The scraper removes some unwanted elements from the page
+  // There is no point in removing elements from pages that aren't saved such as initial URLs or list pages
   try {
     let removedElements = 0;
     for (const selector of source.unwantedElementsSelectors) {
@@ -177,6 +192,15 @@ async function ScrapePage(driver: WebDriver, url: string, source: ScrapeSource) 
       const removed = await driver.executeScript(script, selector) as number;
       removedElements += removed;
     }
+
+    // Remove empty spans filled with icons and other crap
+    await driver.executeScript(() => {
+      document.querySelectorAll("span").forEach(span => {
+        if (!span.textContent || span.textContent.trim() === "") {
+          span.remove();
+        }
+      });
+    });
   }
   catch (e) {
     console.error("Caught error when removing clutter from the page", e);
@@ -184,44 +208,42 @@ async function ScrapePage(driver: WebDriver, url: string, source: ScrapeSource) 
 
   // US4AC9 The scraper saves only pages matching category URL
   try {
-    if (url.includes(source.categoryUrl)) {
-      // US4AC1 To remove clutter, the scraper saves only meaningful part of the page
-      const pagehtmlpath = path.resolve(Config.dataPath(), source.folderName + "/" + pagename + ".html");
+    // US4AC1 To remove clutter, the scraper saves only meaningful part of the page
+    const pagehtmlpath = path.resolve(Config.dataPath(), source.folderName + "/" + pagename + ".html");
 
-      let bodyElFound = false;
-      // US4AC10 The scraper tries to find the most precise root element of the page
-      for (const bodyElSelector of source.rootElementSelectors) {
-        const allMatchingElements = await driver.findElements(By.css(bodyElSelector));
-        if (!allMatchingElements.length)
-          continue;
+    let bodyElFound = false;
+    // US4AC10 The scraper tries to find the most precise root element of the page
+    for (const bodyElSelector of source.rootElementSelectors) {
+      const allMatchingElements = await driver.findElements(By.css(bodyElSelector));
+      if (!allMatchingElements.length)
+        continue;
 
-        bodyElFound = true;
-        const bodyel = allMatchingElements[0];
+      bodyElFound = true;
+      const bodyel = allMatchingElements[0];
 
-        fs.writeFileSync(pagehtmlpath, await bodyel.getAttribute("innerHTML"));
-        // console.log("Saved HTML contents to drive");
+      fs.writeFileSync(pagehtmlpath, await bodyel.getAttribute("innerHTML"));
+      // console.log("Saved HTML contents to drive");
 
-        //US2AC11 Scraper maintains metadata records in the database to link URLs with outputted files
-        const existing_record = record || await ScrapedPageRecordRepository.GetWithURL(url);
-        if (existing_record) {
-          existing_record.LAST_FETCHED = MIS_DT.GetExact();
-          existing_record.htmlfilepath = pagehtmlpath;
-          existing_record.mdfilepath = null;
-          await ScrapedPageRecordRepository.Update(existing_record);
-        }
-        else {
-          const new_page_record = new ScrapedPageRecord();
-          new_page_record.URL = url;
-          new_page_record.LAST_FETCHED = MIS_DT.GetExact();
-          new_page_record.htmlfilepath = pagehtmlpath;
-          record = await ScrapedPageRecordRepository.Insert(new_page_record);
-        }
-        break;
+      //US2AC11 Scraper maintains metadata records in the database to link URLs with outputted files
+      const existing_record = record || await ScrapedPageRecordRepository.GetWithURL(url);
+      if (existing_record) {
+        existing_record.LAST_FETCHED = MIS_DT.GetExact();
+        existing_record.htmlfilepath = pagehtmlpath;
+        existing_record.mdfilepath = null;
+        await ScrapedPageRecordRepository.Update(existing_record);
       }
-
-      if (!bodyElFound) {
-        console.log("Body element not found, skipping");
+      else {
+        const new_page_record = new ScrapedPageRecord();
+        new_page_record.URL = url;
+        new_page_record.LAST_FETCHED = MIS_DT.GetExact();
+        new_page_record.htmlfilepath = pagehtmlpath;
+        record = await ScrapedPageRecordRepository.Insert(new_page_record);
       }
+      break;
+    }
+
+    if (!bodyElFound) {
+      console.log("Body element not found, skipping");
     }
   }
   catch (e) {
@@ -270,7 +292,7 @@ export async function RunFullScraping(source: ScrapeSource) {
         continue;
       }
 
-      await Promise.all([await ScrapePage(driver, url, source), await Sleep(1000 + getRandomInt(15000))]);
+      await Promise.all([await ScrapePage(driver, url, source), await Sleep(2000 + getRandomInt(15000))]);
 
       // US2AC12 The scraper visits only pages w/o html file scraped or visited long ago
       // US3AC1 Only pages of the currently scraped source are processed

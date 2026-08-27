@@ -12,6 +12,7 @@ import { defaultKeyboard } from "./api/keyboards";
 import { MarkdownHelper } from "./util/MarkdownHelper";
 import { ProcessCarScraper } from "./carpostings/CarPostingService";
 import { ProcessJobPosting } from "./jobpostings/JobPostingService";
+import { ProcessApartmentPostings } from "./apartments/ApartmentPostingService";
 
 let waitingCallback: ((message: MessageWrapper) => any) | null = null;
 
@@ -134,6 +135,7 @@ class App {
             const listeners = [
                 ProcessCarScraper,
                 ProcessJobPosting,
+                ProcessApartmentPostings,
                 ProcessBackup,
             ];
 
