@@ -9,41 +9,6 @@ class ConfigClass
 
   public Password = process.env.password;
 
-  public ilovepdfpublickey()
-  {
-    return process.env.ilovepdfpublickey;
-  }
-
-  public converterkey()
-  {
-    return process.env.converterkey;
-  }
-
-  public ilovepdfprivatekey()
-  {
-    return process.env.ilovepdfprivatekey;
-  }
-
-  public ftphost()
-  {
-    return process.env.ftphost;
-  }
-
-  public ftpuser()
-  {
-    return process.env.ftpuser;
-  }
-
-  public ftppassword()
-  {
-    return process.env.ftppassword;
-  }
-
-  public ftpbasepath()
-  {
-    return process.env.ftpbasepath;
-  }
-
   public get(key: string) {
     if (process.env[key]) {
       return process.env[key];

@@ -279,7 +279,7 @@ export async function RunFullScraping(source: ScrapeSource) {
       const ScrapedURLs = await ScrapedPageRecordRepository.GetRecentlyScrapedURLs();
 
       // US2AC9 The scraper shuffles the queue to cover more pages with unfinished scrapes
-      shuffleArray(URLsQueue);
+      //shuffleArray(URLsQueue);
       const url = URLsQueue[URLsQueue.length - 1];
       URLsQueue.pop();
 
@@ -292,7 +292,9 @@ export async function RunFullScraping(source: ScrapeSource) {
         continue;
       }
 
-      await Promise.all([await ScrapePage(driver, url, source), await Sleep(2000 + getRandomInt(15000))]);
+      console.log(`Scraping `, url, " | ", ScrapedURLs.length, " URLs scraped recently |", URLsQueue.length, " URLs in queue");
+
+      await Promise.all([await ScrapePage(driver, url, source), await Sleep(source.minInterval + getRandomInt(15000))]);
 
       // US2AC12 The scraper visits only pages w/o html file scraped or visited long ago
       // US3AC1 Only pages of the currently scraped source are processed

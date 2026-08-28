@@ -103,17 +103,28 @@ async function ExtractFields(record: ScrapedPageRecord, content: string, model =
   }
 }
 
+let ServiceBusy = false;
+
 async function ExtractAllFields(message: MessageWrapper) {
 
   let count = 0;
 
+  if (ServiceBusy) {
+    message.reply("Field extraction already in progress");
+    return;
+  }
+
+  ServiceBusy = true;
+
+  const sources = [KentavarSource, AutoBgSource];
+
   const records = await ScrapedPageRecordRepository.GetFieldExtractionQueue();
+  // Only car-related sources are allowed
+  const filteredEntries = records.filter((entry) => sources.some((filter) => entry.URL.includes(filter.categoryUrl)));
 
-  console.log(`Began extracting fields from`, records.length, " queued pages.");
+  console.log(`Began extracting fields from`, filteredEntries.length, " queued pages.");
 
-  shuffleArray(records);
-
-  for (const record of records) {
+  for (const record of filteredEntries) {
     console.log(`Extracting fields from ${path.basename(record.URL)}`);
     const contents = fs.readFileSync(record.mdfilepath as string).toString();
 
@@ -130,6 +141,9 @@ async function ExtractAllFields(message: MessageWrapper) {
       //US6AC5 Scraper switches between two suitable models if error occurs
       try {
         await Promise.all([ExtractFields(record, contents, "openai/gpt-oss-120b"), Sleep(30000)]);
+        count++;
+        record.mdfilepath = null;
+        await ScrapedPageRecordRepository.Update(record);
       }
       catch (e) {
         console.error("Caught error when extracting fields", e);
@@ -138,6 +152,7 @@ async function ExtractAllFields(message: MessageWrapper) {
     }
   }
 
+  ServiceBusy = false;
   reply(message, `Extracted fields from ${count} Markdown files`);
 }
 
