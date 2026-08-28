@@ -80,7 +80,10 @@ export const ApartmentCianSource: ScrapeSource = {
     ],
     categoryUrl: "https://www.cian.ru/sale/flat/",
     rootElementSelectors: ["#frontend-offer-card"],
-    unwantedElementsSelectors: ["header", 'a:has(>img)', 'img', "[data-name='NewbuildingMortgageSection']", "[data-name='SimilarOffersSection']", "iframe", "form", "svg"],
+    unwantedElementsSelectors: ["header", 'a:has(>img)', 'img', "[data-name='NewbuildingMortgageSection']", "[data-name='SimilarOffersSection']", "iframe", "form", "svg",
+        "[name='mortgage-calculator-micro-frontend']", "[data-name='SimilarOffersAnchor']", "#similarOffers", ".similar-offers-slider",
+        "[data-name='AsideMortgageBanner']", "[data-name='OfferHistoryContainer']", "[data-name='SeoSection']", "[data-name='SubscriptionAuthorBrand']"
+    ],
     isBusy: false,
     minInterval: 30000,
     filter: async (driver) => {

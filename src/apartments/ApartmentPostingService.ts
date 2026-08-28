@@ -63,8 +63,9 @@ async function ExtractFields(record: ScrapedPageRecord, content: string, model =
             "year_of_construction": { "type": "number", "description": "Поле года постройки здания. Если на странице отсутствует - верни 0." },
             "area": { "type": "number", "description": "Общая площадь квартиры в квадратных метрах (выведена в заголовке) без дробной части, запятых, пробелов и единиц измерения." },
             "price": { "type": "number", "description": "Общая цена квартиры в рублях цифрой без знака рубля, без запятых и пробелов." },
+            "price_per_meter": { "type": "number", "description": "Цена за квадратный метр квартиры (₽/м²) без знака рубля, без запятых и пробелов." },
           },
-          "required": ["subwayStation", "subwayDistance", "transportAvailabiity", "type", "year_of_construction", "area", "price"],
+          "required": ["subwayStation", "subwayDistance", "transportAvailabiity", "type", "year_of_construction", "area", "price", "price_per_meter"],
           "additionalProperties": false
         }
       }
@@ -77,8 +78,6 @@ async function ExtractFields(record: ScrapedPageRecord, content: string, model =
     const fields = JSON.parse(choice.message.content || "{}");
     console.log(choice.message.content);
 
-    if (!fields.is_single_car_page)
-      return;
     if (fields.price < 1002)
       return; // Must be a mistake or a car sold for parts
 
@@ -93,6 +92,7 @@ async function ExtractFields(record: ScrapedPageRecord, content: string, model =
       existing_record.year_of_construction = fields?.year_of_construction;
       existing_record.area = fields?.area;
       existing_record.price = fields?.price;
+      existing_record.price_per_meter = fields?.price_per_meter;
       existing_record.source = url;
       await ApartmentPostingRepository.Update(existing_record);
       console.log(`Updated car posting for ${existing_record.type} ${existing_record.area}m2 selling for ${existing_record.price}`);
@@ -104,6 +104,7 @@ async function ExtractFields(record: ScrapedPageRecord, content: string, model =
       posting.transportAvailabiity = fields?.transportAvailabiity;
       posting.type = fields?.type;
       posting.price = fields?.price;
+      posting.price_per_meter = fields?.price_per_meter;
       posting.year_of_construction = fields?.year_of_construction;
       posting.area = fields?.area;
 
@@ -162,7 +163,8 @@ async function ExtractAllFields(message: MessageWrapper) {
       }
       catch (e) {
         console.error("Caught error when extracting fields", e);
-        break;
+        await Sleep(30000);
+        continue;
       }
     }
   }

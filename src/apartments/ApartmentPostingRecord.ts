@@ -10,6 +10,7 @@ export class ApartmentPosting extends Entity {
   public year_of_construction = "";
   public area = 0;
   public price = 0;
+  public price_per_meter = 0;
   public type = "";
   public shop = "CIAN";
   public source = "";
@@ -62,6 +63,13 @@ export async function EnsureApartmentPostingsTable() {
             table.integer("MIS_DT");
             table.integer("UPDATED_DT");
             table.integer("DELETED_DT");
+        });
+    }
+
+    const exists2 = await ApartmentsDb.schema.hasColumn("ApartmentPostings", "price_per_meter");
+    if (!exists2) {
+        await ApartmentsDb.schema.alterTable("ApartmentPostings", (table) => {
+            table.integer("price_per_meter");
         });
     }
 }

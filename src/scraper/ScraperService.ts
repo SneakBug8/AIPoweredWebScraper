@@ -335,7 +335,7 @@ export async function ConvertAllToMd() {
     if (!record.htmlfilepath || record.mdfilepath)
       continue;
 
-    const markdownpath = path.resolve(Config.dataPath(), "md/" + MIS_DT.SortableFormat(MIS_DT.GetExact()) + path.basename(record.htmlfilepath) + ".md");
+    const markdownpath = path.resolve(Config.dataPath(), "md/" + MIS_DT.SortableFormat(MIS_DT.GetExact()) + "_" + path.basename(record.htmlfilepath) + ".md");
     await ExtractMarkdown(record.htmlfilepath, markdownpath);
     count++;
 
