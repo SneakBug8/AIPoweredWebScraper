@@ -3,7 +3,6 @@
 
 import { GroqAPI } from "../api/groq";
 import { MessageWrapper } from "../MessageWrapper";
-import { shuffleArray } from "../util/shuffeArray";
 import { Sleep } from "../util/Sleep";
 import { CarPostingRecordRepository, CarPostingRecord } from "./CarPostingRecord";
 import { ScrapedPageRecord, ScrapedPageRecordRepository } from "../scraper/ScrapedPage";
@@ -193,7 +192,7 @@ export async function ProcessCarScraper(message: MessageWrapper) {
     ConvertAllToMd();
     return true;
   }
-  else if (message.checkRegex(/\/extract_fields/)) {
+  else if (message.checkRegex(/\/extract_cars/)) {
     //US6AC2 Field extraction is done async to the main bot flow
     ExtractAllFields(message);
     return true;

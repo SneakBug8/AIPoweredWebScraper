@@ -4,7 +4,7 @@ export function defaultKeyboard(): TelegramBot.KeyboardButton[][]
 {
     return [
         [{ text: "/scrape_kentavar" }, { text: "/scrape_autobg" }],
-        [{ text: "/scrape_beeline" },],
-        [{ text: "/status" }, { text: "/convert_to_md" }, { text: "/extract_fields" }],
+        [{ text: "/scrape_beeline" }, { text: "/scrape_cian" },],
+        [{ text: "/status" }, { text: "/convert_to_md" }, { text: "/extract_cars" }],
     ];
 }
