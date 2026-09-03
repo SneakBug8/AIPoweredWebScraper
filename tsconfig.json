@@ -2,12 +2,13 @@
     "compilerOptions": {
         "outDir": "./bin/", // path to output directory
         "strictNullChecks": true, // enable strict null checks as a best practice
-        "module": "commonjs", // specify module code generation
-        "target": "es2015", // specify ECMAScript target version
+        "module": "NodeNext", // specify module code generation
+        "target": "es2022", // specify ECMAScript target version
         "rootDir": "src",
         "types": ["node","mocha"],
-        "moduleResolution": "node",
+        "moduleResolution": "NodeNext",
         "strict": true,
+        "skipLibCheck": true,
         "incremental": true,
         "listEmittedFiles": true,
         "pretty": true,
@@ -15,7 +16,7 @@
         "declaration": false,
         "esModuleInterop": true,
         "lib": [
-            "ES2020.Promise",
+            "ES2022",
             "DOM"
          ]
     },

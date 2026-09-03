@@ -1,4 +1,4 @@
-import { By, WebDriver } from "selenium-webdriver";
+import { Page } from "playwright";
 
 export interface ScrapeSource {
     folderName: string;
@@ -9,7 +9,7 @@ export interface ScrapeSource {
     isBusy: boolean;
     minInterval: number;
     // Web scraper skips the page if filter returns false
-    filter: (x: WebDriver) => Promise<boolean>
+    filter: (x: Page) => Promise<boolean>
 }
 
 export const KentavarSource: ScrapeSource = {
@@ -86,14 +86,13 @@ export const ApartmentCianSource: ScrapeSource = {
     ],
     isBusy: false,
     minInterval: 30000,
-    filter: async (driver) => {
+    filter: async (page) => {
         try {
-            const priceElement = await driver.findElement(By.css("[data-testid='price-amount'] span"));
-            if (!priceElement)
+            const priceElement = page.locator("[data-testid='price-amount'] span");
+            if (!await priceElement.count())
                 return false;
 
-
-            const innerText = await priceElement.getText();
+            const innerText = await priceElement.innerText();
             const number = Number(innerText.replace(/[^0-9.-]/g, ""));
             return number < 15_000_000;
         }

@@ -1,4 +1,7 @@
+import * as dotenv from "dotenv";
 import { FindMyIp } from "./util/FindMyIp";
+
+dotenv.config();
 
 class ConfigClass
 {

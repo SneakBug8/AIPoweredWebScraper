@@ -1,7 +1,7 @@
 import { MessageWrapper } from "../MessageWrapper";
 import { MIS_DT } from "../util/MIS_DT";
 import { Config } from "../config";
-import { Builder, Browser, By, WebDriver } from 'selenium-webdriver';
+import { BrowserContext, Page } from 'playwright';
 import { Sleep } from "../util/Sleep";
 import * as fs from "fs";
 import * as path from "path";
@@ -10,247 +10,301 @@ import { ScrapedPageRecord, ScrapedPageRecordRepository } from "./ScrapedPage";
 import { ScrapeSource } from "./ScrapeSource";
 import { shuffleArray } from "../util/shuffeArray";
 import { TgBotServer } from "../App";
-
-let driver: WebDriver = null as any;
-
-// Create driver when the bot starts
-(async () => {
-  driver = new Builder().forBrowser(Browser.FIREFOX).build()
-  await driver.manage().setTimeouts({
-    implicit: 10_000, // element lookup timeout
-    pageLoad: 60_000, // page-load timeout
-    script: 30_000    // executeAsyncScript timeout
-  });
-})();
+import { getBrowser, ClosePlaywrightBrowser } from "./PlaywrightBrowser";
 
 // US2 The scraper does scraping autonomously
 
-async function ScrapePage(driver: WebDriver, url: string, source: ScrapeSource) {
-  // US2AC5 The scraper waits for the page to load and applies artificial delay to scraping
-  // US2AC10 The scraper repeats tries to open the page until it is succesful
-  let hasEncounteredError = "No content"; // must resolve to true to enter cycle
-  let i = 0;
-  // US40AC20 The scraper tries to open the page for 5 times before returning the error
-  while (hasEncounteredError && i < 5) {
+async function ScrapePage(url: string, source: ScrapeSource) {
+  const b = await getBrowser();
+  // Fresh, isolated context per request -> parallel-safe, no cross-request cookies.
+  const context: BrowserContext = await b.newContext();
+  const page: Page = await context.newPage();
+
+  try {
+    // US2AC5 The scraper waits for the page to load and applies artificial delay to scraping
+    // US2AC10 The scraper repeats tries to open the page until it is succesful
+    let hasEncounteredError = "No content"; // must resolve to true to enter cycle
+    let i = 0;
+    const NAVIGATION_TIMEOUT_MS = 60000;
+
+    function rejectOnTimeout(ms: number): Promise<never> {
+      return new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(`Page load timed out after ${ms}ms`)), ms)
+      );
+    }
+
+    // US40AC20 The scraper tries to open the page for 5 times before returning the error
+    while (hasEncounteredError && i < 5) {
+      try {
+        console.log(`Opening page ${url}, try ${i}`);
+        hasEncounteredError = "";
+        try {
+          await Promise.race([
+            page.goto(url, { waitUntil: "domcontentloaded", timeout: NAVIGATION_TIMEOUT_MS }),
+            rejectOnTimeout(NAVIGATION_TIMEOUT_MS),
+          ]);
+        } catch (e: any) {
+          hasEncounteredError = JSON.stringify(e);
+          await Sleep(1500);
+          continue;
+        }
+        // Let dynamic content settle briefly before extracting.
+        await Sleep(1000);
+      }
+      catch (e) {
+        i++;
+        hasEncounteredError = JSON.stringify(e);
+        await Sleep(2500);
+      }
+      finally {
+        i++;
+      }
+    }
+    if (hasEncounteredError) {
+      throw new Error("Error opening the page: " + hasEncounteredError);
+    }
+
+    // US2AC13 When the page returns 404 Not Found, it is skipped and its record deleted
     try {
-      console.log(`Opening page ${url}, try ${i}`);
-      driver.get(url);
-      await Sleep(1250);
-      hasEncounteredError = "";
-      await Promise.race([driver.get(url), async () => { await Sleep(10000); hasEncounteredError = "Page load timeout" }]);
-      await Sleep(1000);
+      const statusCode = await page.evaluate(
+        "return window.performance.getEntriesByType('navigation')[0].responseStatus;"
+      ) as number;
+
+      if (statusCode === 404) {
+        console.log(`Page ${url} returned 404 Not Found, removing from scraping`);
+
+        //const existing_record = await ScrapedPageRecordRepository.GetWithURL(url);
+        //if (existing_record) {
+        //  await ScrapedPageRecordRepository.Delete(existing_record);
+        //  console.log(`Deleted scraped page record for ${url}`);
+        //}
+
+        return null;
+      }
+      else if (statusCode !== 200) {
+        console.log(`Page ${url} returned ${statusCode} code, skipping`);
+        return null;
+      }
     }
     catch (e) {
-      i++;
-      // console.error(`Caught error when opening the page`, e);
-      hasEncounteredError = JSON.stringify(e);
-      await Sleep(3000);
+      console.error("Caught error when checking page status code", e);
     }
-  }
-  if (hasEncounteredError) {
-    throw new Error("Error opening the page: " + hasEncounteredError);
-  }
 
-  // US2AC13 When the page returns 404 Not Found, it is skipped and its record deleted
-  try {
-    const statusCode = await driver.executeScript(
-      "return window.performance.getEntriesByType('navigation')[0].responseStatus;"
-    ) as number;
+    // US2AC14 The scraper scrolls the page down to trigger infinite loading until its height stops changing
+    try {
+      const maxScrollIterations = 25; // Safety cap against pages that never stop growing
+      let previousHeight = await page.evaluate("return document.body.scrollHeight") as number;
+      let iterations = 0;
 
-    if (statusCode === 404) {
-      console.log(`Page ${url} returned 404 Not Found, removing from scraping`);
+      while (iterations < maxScrollIterations) {
+        await page.evaluate("window.scrollTo(0, document.body.scrollHeight);");
+        await Sleep(1000);
 
-      //const existing_record = await ScrapedPageRecordRepository.GetWithURL(url);
-      //if (existing_record) {
-      //  await ScrapedPageRecordRepository.Delete(existing_record);
-      //  console.log(`Deleted scraped page record for ${url}`);
-      //}
+        const currentHeight = await page.evaluate("return document.body.scrollHeight") as number;
+        iterations++;
 
-      return null;
+        if (currentHeight <= previousHeight) {
+          break;
+        }
+
+        console.log(`Page ${url} lazy-loaded more content | height ${previousHeight} -> ${currentHeight} | try ${iterations}`);
+        previousHeight = currentHeight;
+      }
     }
-    else if (statusCode !== 200) {
-      console.log(`Page ${url} returned ${statusCode} code, skipping`);
-      return null;
+    catch (e) {
+      console.error("Caught error when triggering infinite loading", e);
     }
-  }
-  catch (e) {
-    console.error("Caught error when checking page status code", e);
-  }
 
-  // US2AC14 The scraper scrolls the page down to trigger infinite loading until its height stops changing
-  try {
-    const maxScrollIterations = 25; // Safety cap against pages that never stop growing
-    let previousHeight = await driver.executeScript("return document.body.scrollHeight") as number;
-    let iterations = 0;
+    // US2AC7 The scraper adds a[href] links on the page to the queue
+    // US3 The scraper filters links it finds to narrow down search
+    // US3AC1 The scraper follows the link only if it is part of the categoryUrl (base url) or initial URL
+    // Scrape links before we delete them below to avoid stale elements being referenced
+    try {
+      const URLsQueuePrev = (await ScrapedPageRecordRepository.GetScrapingQueueURLs()).length;
 
-    while (iterations < maxScrollIterations) {
-      await driver.executeScript("window.scrollTo(0, document.body.scrollHeight);");
-      await Sleep(1000);
+      const linkElements = await page.locator('a').all();
+      for (const element of linkElements) {
+        const href1 = await element.getAttribute("href");
+        if (!href1)
+          continue;
+        const href2 = href1.split("#")[0]; // Remove unwanted link clutter
+        const href = href2.split("?")[0];
 
-      const currentHeight = await driver.executeScript("return document.body.scrollHeight") as number;
-      iterations++;
+        if (href.endsWith(".pdf")) {
+          continue;
+        }
 
-      if (currentHeight <= previousHeight) {
+        if (href &&
+          (href.includes(source.categoryUrl) || urlInArrayPartial(href, source.initialURLs))
+          && !href.includes("sms:") && !href.includes("tel:")
+          && !href.includes("viber:") && !href.includes("about:")) {
+          const link_in_the_db = await ScrapedPageRecordRepository.GetWithURL(href);
+
+          // console.log("Found link on the page", href, "visited:", !!link_in_the_db);
+
+          if (!link_in_the_db) {
+            // Save new link to the DB
+            const linked_page_record = new ScrapedPageRecord();
+            linked_page_record.URL = href;
+            await ScrapedPageRecordRepository.Insert(linked_page_record);
+          }
+        }
+      }
+
+      const URLsQueueNext = (await ScrapedPageRecordRepository.GetScrapingQueueURLs()).length;
+      console.log(`Added ${URLsQueueNext - URLsQueuePrev} new links to the DB and scraping queue`);
+    }
+    catch (e) {
+      console.error("Caught error when appending URLs queue", e);
+    }
+
+    url = url.replace(/\/+$/, "");
+
+    const pagepieces = url.split("/");
+    const pagename = pagepieces[pagepieces.length - 1]
+      .replace(/\?/g, "-")
+      .replace(/\./g, "-")
+      .replace(/=/g, "-") || await page.title();
+
+    // Add page to the scraped URLs even if the body element wasn't found to prevent repeated scraping of fluff pages
+    const existing_record = await ScrapedPageRecordRepository.GetWithURL(url);
+    let record = new ScrapedPageRecord();
+    if (existing_record) {
+      record = existing_record;
+      record.LAST_FETCHED = MIS_DT.GetExact();
+      await ScrapedPageRecordRepository.Update(record);
+    }
+    else {
+      record.URL = url;
+      record.LAST_FETCHED = MIS_DT.GetExact();
+      record = await ScrapedPageRecordRepository.Insert(record);
+    }
+
+    // Preliminary exit for pages that aren't saved
+    if (!url.includes(source.categoryUrl) || !await source.filter(page)) {
+      return record;
+    }
+
+    // US5 The scraper removes some unwanted elements from the page
+    // There is no point in removing elements from pages that aren't saved such as initial URLs or list pages
+    try {
+      const REMOVE_ELEMENTS_SCRIPT = `
+        (selector) => {
+          var elements = document.querySelectorAll(selector);
+          var count = 0;
+          for (var i = elements.length - 1; i >= 0; i--) {
+            var el = elements[i];
+            if (el && el.parentNode) {
+              el.parentNode.removeChild(el);
+              count++;
+            }
+          }
+          return count;
+        }
+      `;
+
+      const REMOVE_EMPTY_SPANS_SCRIPT = `
+        () => {
+          document.querySelectorAll("span").forEach(span => {
+            if (!span.textContent || span.textContent.trim() === "") {
+              span.remove();
+            }
+          });
+        }
+      `;
+
+      const REMOVE_STRUCK_THROUGH_SCRIPT = `
+        () => {
+          const elements = document.querySelectorAll('*');
+          let count = 0;
+          for (let el of elements) {
+            const dec = window.getComputedStyle(el).textDecoration;
+            if (dec.includes('line-through') && el && el.parentNode) {
+              el.parentNode.removeChild(el);
+              count++;
+            }
+          }
+          return count;
+        }
+      `;
+
+      let removedElements = 0;
+      for (const selector of source.unwantedElementsSelectors) {
+        const removed = await page.evaluate(REMOVE_ELEMENTS_SCRIPT, selector) as number;
+        removedElements += removed;
+        // Also remove struck-through (e.g. sold/removed) elements
+        await page.evaluate(REMOVE_STRUCK_THROUGH_SCRIPT);
+      }
+
+      // Remove empty spans filled with icons and other crap
+      await page.evaluate(REMOVE_EMPTY_SPANS_SCRIPT);
+    }
+    catch (e) {
+      console.error("Caught error when removing clutter from the page", e);
+    }
+
+    // US4AC9 The scraper saves only pages matching category URL
+    try {
+      // US4AC1 To remove clutter, the scraper saves only meaningful part of the page
+      const pagehtmlpath = path.resolve(Config.dataPath(), source.folderName + "/" + pagename + ".html");
+
+      let bodyElFound = false;
+      // US4AC10 The scraper tries to find the most precise root element of the page
+      for (const bodyElSelector of source.rootElementSelectors) {
+        const allMatchingElements = await page.locator(bodyElSelector).all();
+        if (!allMatchingElements.length)
+          continue;
+
+        bodyElFound = true;
+        const innerHTML = await allMatchingElements[0].innerHTML();
+
+        fs.writeFileSync(pagehtmlpath, innerHTML);
+        // console.log("Saved HTML contents to drive");
+
+        // Save a copy for debugging.
+        try {
+          const mainurl = url.split("?")[0];
+          const pagepieces = mainurl.split("/");
+          const debugpagename = pagepieces[pagepieces.length - 1].replace("?", "-").replace(".", "-").replace("=", "-");
+          const debughtmlpath = path.resolve(Config.dataPath(), "fetchedwebpages/" + MIS_DT.GetExact().toString() + "-" + debugpagename + ".html");
+          fs.writeFileSync(debughtmlpath, innerHTML);
+        }
+        catch (e) {
+          console.error("Couldn't save page copy for debugging");
+        }
+
+        //US2AC11 Scraper maintains metadata records in the database to link URLs with outputted files
+        const existing_record = record || await ScrapedPageRecordRepository.GetWithURL(url);
+        if (existing_record) {
+          existing_record.LAST_FETCHED = MIS_DT.GetExact();
+          existing_record.htmlfilepath = pagehtmlpath;
+          existing_record.mdfilepath = null;
+          await ScrapedPageRecordRepository.Update(existing_record);
+        }
+        else {
+          const new_page_record = new ScrapedPageRecord();
+          new_page_record.URL = url;
+          new_page_record.LAST_FETCHED = MIS_DT.GetExact();
+          new_page_record.htmlfilepath = pagehtmlpath;
+          record = await ScrapedPageRecordRepository.Insert(new_page_record);
+        }
         break;
       }
 
-      console.log(`Page ${url} lazy-loaded more content | height ${previousHeight} -> ${currentHeight} | try ${iterations}`);
-      previousHeight = currentHeight;
-    }
-  }
-  catch (e) {
-    console.error("Caught error when triggering infinite loading", e);
-  }
-
-  // US2AC7 The scraper adds a[href] links on the page to the queue
-  // US3 The scraper filters links it finds to narrow down search
-  // US3AC1 The scraper follows the link only if it is part of the categoryUrl (base url) or initial URL
-  // Scrape links before we delete them below to avoid stale elements being referenced
-  try {
-    const URLsQueuePrev = (await ScrapedPageRecordRepository.GetScrapingQueueURLs()).length;
-
-    for (const element of await driver.findElements(By.css('a'))) {
-      const href1 = await element.getAttribute("href");
-      if (!href1)
-        continue;
-      const href2 = href1.split("#")[0]; // Remove unwanted link clutter
-      const href = href2.split("?")[0];
-
-      if (href.endsWith(".pdf")) {
-        continue;
-      }
-
-      if (href &&
-        (href.includes(source.categoryUrl) || urlInArrayPartial(href, source.initialURLs))
-        && !href.includes("sms:") && !href.includes("tel:")
-        && !href.includes("viber:") && !href.includes("about:")) {
-        const link_in_the_db = await ScrapedPageRecordRepository.GetWithURL(href);
-
-        // console.log("Found link on the page", href, "visited:", !!link_in_the_db);
-
-        if (!link_in_the_db) {
-          // Save new link to the DB
-          const linked_page_record = new ScrapedPageRecord();
-          linked_page_record.URL = href;
-          await ScrapedPageRecordRepository.Insert(linked_page_record);
-        }
+      if (!bodyElFound) {
+        console.log("Body element not found, skipping");
       }
     }
+    catch (e) {
+      console.error("Caught error when saving the page contents", e);
+    }
 
-    const URLsQueueNext = (await ScrapedPageRecordRepository.GetScrapingQueueURLs()).length;
-    console.log(`Added ${URLsQueueNext - URLsQueuePrev} new links to the DB and scraping queue`);
-  }
-  catch (e) {
-    console.error("Caught error when appending URLs queue", e);
-  }
-
-  url = url.replace(/\/+$/, "");
-
-  const pagepieces = url.split("/");
-  const pagename = pagepieces[pagepieces.length - 1]
-    .replace(/\?/g, "-")
-    .replace(/\./g, "-")
-    .replace(/=/g, "-") || await driver.getTitle();
-
-  // Add page to the scraped URLs even if the body element wasn't found to prevent repeated scraping of fluff pages
-  const existing_record = await ScrapedPageRecordRepository.GetWithURL(url);
-  let record = new ScrapedPageRecord();
-  if (existing_record) {
-    record = existing_record;
-    record.LAST_FETCHED = MIS_DT.GetExact();
-    await ScrapedPageRecordRepository.Update(record);
-  }
-  else {
-    record.URL = url;
-    record.LAST_FETCHED = MIS_DT.GetExact();
-    record = await ScrapedPageRecordRepository.Insert(record);
-  }
-
-  // Preliminary exit for pages that aren't saved
-  if (!url.includes(source.categoryUrl) || !await source.filter(driver)) {
     return record;
   }
-
-  // US5 The scraper removes some unwanted elements from the page
-  // There is no point in removing elements from pages that aren't saved such as initial URLs or list pages
-  try {
-    let removedElements = 0;
-    for (const selector of source.unwantedElementsSelectors) {
-      const script = `
-        var selector = arguments[0];
-        var elements = document.querySelectorAll(selector);
-        var count = 0;
-        for (var i = elements.length - 1; i >= 0; i--) {   // reverse loop avoids index shifting
-          var el = elements[i];
-          if (el && el.parentNode) {
-            el.parentNode.removeChild(el);
-            count++;
-          }
-        }
-        return count;
-      `;
-      const removed = await driver.executeScript(script, selector) as number;
-      removedElements += removed;
-    }
-
-    // Remove empty spans filled with icons and other crap
-    await driver.executeScript(() => {
-      document.querySelectorAll("span").forEach(span => {
-        if (!span.textContent || span.textContent.trim() === "") {
-          span.remove();
-        }
-      });
-    });
+  finally {
+    // Always close the per-request context (also closes its page).
+    await context.close().catch(() => { });
   }
-  catch (e) {
-    console.error("Caught error when removing clutter from the page", e);
-  }
-
-  // US4AC9 The scraper saves only pages matching category URL
-  try {
-    // US4AC1 To remove clutter, the scraper saves only meaningful part of the page
-    const pagehtmlpath = path.resolve(Config.dataPath(), source.folderName + "/" + pagename + ".html");
-
-    let bodyElFound = false;
-    // US4AC10 The scraper tries to find the most precise root element of the page
-    for (const bodyElSelector of source.rootElementSelectors) {
-      const allMatchingElements = await driver.findElements(By.css(bodyElSelector));
-      if (!allMatchingElements.length)
-        continue;
-
-      bodyElFound = true;
-      const bodyel = allMatchingElements[0];
-
-      fs.writeFileSync(pagehtmlpath, await bodyel.getAttribute("innerHTML"));
-      // console.log("Saved HTML contents to drive");
-
-      //US2AC11 Scraper maintains metadata records in the database to link URLs with outputted files
-      const existing_record = record || await ScrapedPageRecordRepository.GetWithURL(url);
-      if (existing_record) {
-        existing_record.LAST_FETCHED = MIS_DT.GetExact();
-        existing_record.htmlfilepath = pagehtmlpath;
-        existing_record.mdfilepath = null;
-        await ScrapedPageRecordRepository.Update(existing_record);
-      }
-      else {
-        const new_page_record = new ScrapedPageRecord();
-        new_page_record.URL = url;
-        new_page_record.LAST_FETCHED = MIS_DT.GetExact();
-        new_page_record.htmlfilepath = pagehtmlpath;
-        record = await ScrapedPageRecordRepository.Insert(new_page_record);
-      }
-      break;
-    }
-
-    if (!bodyElFound) {
-      console.log("Body element not found, skipping");
-    }
-  }
-  catch (e) {
-    console.error("Caught error when saving the page contents", e);
-  }
-
-  return record;
 }
 
 // US1AC3 Scraping is done async to bot operations
@@ -294,7 +348,7 @@ export async function RunFullScraping(source: ScrapeSource) {
 
       console.log(`Scraping `, url, " | ", ScrapedURLs.length, " URLs scraped recently |", URLsQueue.length, " URLs in queue");
 
-      await Promise.all([await ScrapePage(driver, url, source), await Sleep(source.minInterval + getRandomInt(15000))]);
+      await Promise.all([await ScrapePage(url, source), await Sleep(source.minInterval + getRandomInt(15000))]);
 
       // US2AC12 The scraper visits only pages w/o html file scraped or visited long ago
       // US3AC1 Only pages of the currently scraped source are processed
