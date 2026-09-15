@@ -36,7 +36,7 @@ async function ScrapePage(url: string, source: ScrapeSource) {
     // US40AC20 The scraper tries to open the page for 5 times before returning the error
     while (hasEncounteredError && i < 5) {
       try {
-        console.log(`Opening page ${url}, try ${i}`);
+        console.log(`[ScraperService] Opening page ${url}, try ${i}`);
         hasEncounteredError = "";
         try {
           await Promise.race([
@@ -107,7 +107,7 @@ async function ScrapePage(url: string, source: ScrapeSource) {
           break;
         }
 
-        console.log(`Page ${url} lazy-loaded more content | height ${previousHeight} -> ${currentHeight} | try ${iterations}`);
+        console.log(`[ScraperService] Page lazy-loaded more content | height ${previousHeight} -> ${currentHeight} | try ${iterations}`);
         previousHeight = currentHeight;
       }
     }
@@ -152,7 +152,7 @@ async function ScrapePage(url: string, source: ScrapeSource) {
       }
 
       const URLsQueueNext = (await ScrapedPageRecordRepository.GetScrapingQueueURLs()).length;
-      console.log(`Added ${URLsQueueNext - URLsQueuePrev} new links to the DB and scraping queue`);
+      console.log(`[ScraperService] Added ${URLsQueueNext - URLsQueuePrev} new links to the DB and scraping queue`);
     }
     catch (e) {
       console.error("Caught error when appending URLs queue", e);
@@ -346,7 +346,7 @@ export async function RunFullScraping(source: ScrapeSource) {
         continue;
       }
 
-      console.log(`Scraping `, url, " | ", ScrapedURLs.length, " URLs scraped recently |", URLsQueue.length, " URLs in queue");
+      console.log(`[ScraperService] Scraping `, url, " | ", ScrapedURLs.length, " URLs scraped recently |", URLsQueue.length, " URLs in queue");
 
       await Promise.all([await ScrapePage(url, source), await Sleep(source.minInterval + getRandomInt(15000))]);
 

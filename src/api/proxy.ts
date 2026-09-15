@@ -75,8 +75,8 @@ export function GetFetch(): typeof fetch | undefined {
             };
 
             const req = mod.request(options, (res) => {
-                const chunks: Uint8Array[] = [];
-                res.on("data", (chunk) => chunks.push(new Uint8Array(chunk)));
+                const chunks: Buffer[] = [];
+                res.on("data", (chunk) => chunks.push(chunk as Buffer));
                 res.on("end", () => {
                     const responseHeaders = new Headers();
                     for (const [key, value] of Object.entries(res.headers)) {
@@ -84,7 +84,7 @@ export function GetFetch(): typeof fetch | undefined {
                         if (Array.isArray(value)) value.forEach((v) => responseHeaders.append(key, v));
                         else responseHeaders.append(key, value);
                     }
-                    resolve(new Response(Buffer.concat(chunks).buffer as ArrayBuffer, {
+                    resolve(new Response(Buffer.concat(chunks as any) as any, {
                         status: res.statusCode || 0,
                         statusText: res.statusMessage,
                         headers: responseHeaders,

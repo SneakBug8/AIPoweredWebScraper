@@ -3,23 +3,23 @@ import { AIMessageWrapper, AIModelWrapper, AIResponseWrapper, ExtractReasoningCo
 import { dumpDebugJSON } from "../util/dumpDebugJSON.js";
 import { GetFetch } from "./proxy.js";
 
-//US100 OpenRouter is one of the available APIs
-export const OpenRouterClient = new OpenAI({
-    apiKey: process.env.OPENROUTER_KEY,
-    baseURL: "https://openrouter.ai/api/v1",
+
+//US100 Kilo is one of the available APIs.
+export const KiloClient = new OpenAI({
+    baseURL: "https://api.kilo.ai/api/gateway",
     timeout: 5 * 60 * 1000,
+    apiKey: process.env.Kilo_API_KEY,
     ...(GetFetch() ? { fetch: GetFetch() } : {})
 });
 
-export class OpenRouterWrapperClass implements AIModelWrapper {
+export class KiloWrapperClass implements AIModelWrapper {
 
     model: string;
     public constructor(model: string) {
         this.model = model;
     }
-
     public GetProvider() {
-        return "openrouter";
+        return "Kilo";
     }
 
     public GetModel() {
@@ -27,20 +27,22 @@ export class OpenRouterWrapperClass implements AIModelWrapper {
     }
 
     public GetSleep() {
-        return 10000;
+        return 99000;
     }
 
     public message(role: string, content: string, name: string | undefined = undefined, tool_call_id: string | undefined = undefined) {
-        let msg = new OpenRouterMessageWrapper();
+        let msg = new KiloMessageWrapper();
         msg.role = role;
         msg.content = content;
-        msg.name = name;
-        msg.tool_call_id = tool_call_id;
+        if (name)
+            msg.name = name;
+        if (tool_call_id)
+            msg.tool_call_id = tool_call_id;
         return msg;
     }
 
     public wrapMessage(message: OpenAI.Chat.Completions.ChatCompletionMessageParam) {
-        let msg = new OpenRouterMessageWrapper();
+        let msg = new KiloMessageWrapper();
         Object.assign(msg, message);
         msg.role = message.role;
         msg.content = message.content as string;
@@ -57,16 +59,16 @@ export class OpenRouterWrapperClass implements AIModelWrapper {
 
     public async prompt(messages: AIMessageWrapper[], response_format?: JSONStructure, tools?: any[]): Promise<AIResponseWrapper> {
         try {
-        const chatCompletion = await OpenRouterClient.chat.completions.create(
-            {
-                messages: messages.map((x) => this.messageToNative(x)),
-                model: this.model,
-                response_format: response_format as any,
-                tools: tools
-            },
-        );
+            const chatCompletion = await KiloClient.chat.completions.create(
+                {
+                    messages: messages.map((x) => this.messageToNative(x)),
+                    model: this.GetModel(),
+                    response_format: response_format as any,
+                    tools: tools
+                },
+            );
 
-        return new OpenRouterResponseWrapper(chatCompletion);
+            return new KiloResponseWrapper(chatCompletion);
         }
         catch (e) {
             dumpDebugJSON([this.GetProvider(), this.GetModel(), e, {
@@ -80,7 +82,7 @@ export class OpenRouterWrapperClass implements AIModelWrapper {
     }
 }
 
-export class OpenRouterMessageWrapper implements AIMessageWrapper {
+export class KiloMessageWrapper implements AIMessageWrapper {
     role!: string;
     content!: string;
     name?: string;
@@ -88,11 +90,18 @@ export class OpenRouterMessageWrapper implements AIMessageWrapper {
     tool_calls?: JSONStructure[] | undefined;
 }
 
-export class OpenRouterResponseWrapper implements AIResponseWrapper {
+export class KiloResponseWrapper implements AIResponseWrapper {
     response: OpenAI.Chat.Completions.ChatCompletion;
 
     constructor(response: OpenAI.Chat.Completions.ChatCompletion) {
         this.response = response;
+    }
+    getCompletionTokens(): number {
+        return this.response.usage?.completion_tokens || Math.ceil(this.getContent().length / 4);
+    }
+
+    public getFinishReason(): string {
+        return this.response.choices?.[0]?.finish_reason || "";
     }
 
     public getContent(): string {
@@ -107,28 +116,20 @@ export class OpenRouterResponseWrapper implements AIResponseWrapper {
         if (!this.response || !this.response.choices || !this.response.choices.length || !this.response.choices[0].message.tool_calls)
             return [];
 
-        return this.response.choices[0].message.tool_calls.map((x) => new OpenRouterToolWrapper(x as OpenAI.Chat.Completions.ChatCompletionMessageFunctionToolCall));
+        return this.response.choices[0].message.tool_calls.map((x) => new KiloToolWrapper(x as OpenAI.Chat.Completions.ChatCompletionMessageFunctionToolCall));
     }
 
-    public getMessage(): OpenRouterMessageWrapper {
+    public getMessage(): KiloMessageWrapper {
         const msg = this.getMessageRaw();
-        return msg as OpenRouterMessageWrapper;
+        return msg as KiloMessageWrapper;
     }
 
     public getMessageRaw(): OpenAI.Chat.Completions.ChatCompletionMessageParam {
         return this.response.choices[0].message;
     }
-
-    public getCompletionTokens(): number {
-        return this.response.usage?.completion_tokens || Math.ceil(this.getContent().length / 4);
-    }
-
-    public getFinishReason(): string {
-        return this.response.choices?.[0]?.finish_reason || "";
-    }
 }
 
-export class OpenRouterToolWrapper implements ToolCallWrapper {
+export class KiloToolWrapper implements ToolCallWrapper {
     call: OpenAI.Chat.Completions.ChatCompletionMessageFunctionToolCall;
 
     constructor(call: OpenAI.Chat.Completions.ChatCompletionMessageFunctionToolCall) {
@@ -146,6 +147,7 @@ export class OpenRouterToolWrapper implements ToolCallWrapper {
     public getToolCallId() {
         return this.call.id;
     }
+
     public setToolCallId(id: string): void {
         this.call.id = id;
     }

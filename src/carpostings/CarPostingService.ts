@@ -121,10 +121,10 @@ async function ExtractAllFields(message: MessageWrapper) {
   // Only car-related sources are allowed
   const filteredEntries = records.filter((entry) => sources.some((filter) => entry.URL.includes(filter.categoryUrl)));
 
-  console.log(`Began extracting fields from`, filteredEntries.length, " queued pages.");
+  console.log(`[CarPostingService] Began extracting fields from`, filteredEntries.length, " queued pages.");
 
   for (const record of filteredEntries) {
-    console.log(`Extracting fields from ${path.basename(record.URL)}`);
+    console.log(`[CarPostingService] Extracting fields from ${path.basename(record.URL)}`);
     const contents = fs.readFileSync(record.mdfilepath as string).toString();
 
     try {
