@@ -67,7 +67,7 @@ async function ScrapePage(url: string, source: ScrapeSource) {
     // US2AC13 When the page returns 404 Not Found, it is skipped and its record deleted
     try {
       const statusCode = await page.evaluate(
-        "return window.performance.getEntriesByType('navigation')[0].responseStatus;"
+        "window.performance.getEntriesByType('navigation')[0].responseStatus;"
       ) as number;
 
       if (statusCode === 404) {
@@ -93,14 +93,14 @@ async function ScrapePage(url: string, source: ScrapeSource) {
     // US2AC14 The scraper scrolls the page down to trigger infinite loading until its height stops changing
     try {
       const maxScrollIterations = 25; // Safety cap against pages that never stop growing
-      let previousHeight = await page.evaluate("return document.body.scrollHeight") as number;
+      let previousHeight = await page.evaluate("document.body.scrollHeight") as number;
       let iterations = 0;
 
       while (iterations < maxScrollIterations) {
         await page.evaluate("window.scrollTo(0, document.body.scrollHeight);");
         await Sleep(1000);
 
-        const currentHeight = await page.evaluate("return document.body.scrollHeight") as number;
+        const currentHeight = await page.evaluate("document.body.scrollHeight") as number;
         iterations++;
 
         if (currentHeight <= previousHeight) {

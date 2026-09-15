@@ -1,14 +1,14 @@
 import * as dotenv from "dotenv";
 import { Config } from "../config";
 dotenv.config();
-import * as App from "../index";
+import { TgBotServer } from "../App";
 
 console.log("App imported");
 
 exports.mochaHooks = {
     async before()
     {
-        await App.Server.WaitForLoad();
+        await TgBotServer.WaitForLoad();
         //  Config.setTest();
     }
 };

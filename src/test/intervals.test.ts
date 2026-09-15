@@ -1,5 +1,4 @@
-import { assert, expect } from "chai";
-import { Server } from "..";
+import { assert } from "chai";
 import { IntervalsExecution } from "../util/IntervalsExecution";
 
 describe('Intervals', function ()
