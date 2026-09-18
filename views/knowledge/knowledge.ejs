@@ -1,0 +1,145 @@
+<%- include('../partials/head') %>
+
+<h1>Knowledge Scraper</h1>
+<p>Run the knowledge scraper and the LLM article extractor without Telegram. Stats refresh on each page load.</p>
+
+<% function formatNum(v) {
+    if (v === undefined || v === null) return "-";
+    return Number(v).toLocaleString("en-US");
+} %>
+
+<% if (locals.message) { %>
+    <div class="alert alert-success">
+        <%= message %>
+    </div>
+<% } %>
+
+<% if (locals.error) { %>
+    <div class="alert alert-danger">
+        <%= error %>
+    </div>
+<% } %>
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card mb-3">
+            <div class="card-header">Actions</div>
+            <div class="card-body">
+                <form method="POST" action="/knowledge/scrape">
+                    <button type="submit" class="btn btn-primary w-100 mb-2">Run knowledge scraping</button>
+                </form>
+                <form method="POST" action="/knowledge/extract">
+                    <button type="submit" class="btn btn-success w-100">Extract all articles</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card mb-3">
+            <div class="card-header">System status</div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tbody>
+                        <tr>
+                            <td>Telegram bot</td>
+                            <td>
+                                <% if (system.botAvailable) { %>
+                                    <span class="text-success">Available</span>
+                                <% } else { %>
+                                    <span class="text-danger">Not available</span>
+                                <% } %>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Knowledge scraping</td>
+                            <td>
+                                <% if (system.sourceBusy) { %>
+                                    <span class="text-warning">In progress</span>
+                                <% } else { %>
+                                    <span class="text-success">Idle</span>
+                                <% } %>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Article extraction</td>
+                            <td>
+                                <% if (system.extractionBusy) { %>
+                                    <span class="text-warning">In progress</span>
+                                <% } else { %>
+                                    <span class="text-success">Idle</span>
+                                <% } %>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card mb-3">
+            <div class="card-header">Database stats</div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tbody>
+                        <tr>
+                            <td>Knowledge articles</td>
+                            <td><%= formatNum(db.articles) %></td>
+                        </tr>
+                        <tr>
+                            <td>Scraped pages</td>
+                            <td><%= formatNum(db.scrapedPages) %></td>
+                        </tr>
+                        <tr>
+                            <td>Scraping queue</td>
+                            <td><%= formatNum(db.scrapeQueue) %></td>
+                        </tr>
+                        <tr>
+                            <td>Markdown queue</td>
+                            <td><%= formatNum(db.mdQueue) %></td>
+                        </tr>
+                        <tr>
+                            <td>Field extraction queue</td>
+                            <td><%= formatNum(db.fieldQueue) %></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h2>Latest articles</h2>
+<table id="articles" class="display">
+    <thead>
+        <tr>
+            <td>Id</td>
+            <td>Title</td>
+            <td>Author</td>
+            <td>Published</td>
+            <td>Summary</td>
+            <td>Source</td>
+        </tr>
+    </thead>
+    <tbody>
+        <% for (let article of latestArticles) { %>
+            <tr>
+                <td><%= article.Id %></td>
+                <td><%= article.title %></td>
+                <td><%= article.author %></td>
+                <td><%= article.published %></td>
+                <td><%= article.summary %></td>
+                <td><%= article.source %></td>
+            </tr>
+        <% } %>
+    </tbody>
+</table>
+
+<script defer>
+    $(document).ready(function () {
+        $('#articles').DataTable({
+            "order": [[ 0, "desc" ]]
+        });
+    });
+</script>
+
+<%- include('../partials/bottom') %>

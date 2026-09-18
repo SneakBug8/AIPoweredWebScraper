@@ -4,12 +4,16 @@ dotenv.config();
 import { Config } from "./config";
 import { TgBotServer } from "./App";
 import { ApartmentPostingWebService } from "./apartments/ApartmentPostingWebService";
+import { KnowledgeScrapingWebService } from "./knowledgescraping/KnowledgeScrapingWebService";
+import { CarPostingWebService } from "./carpostings/CarPostingWebService";
 
 export { setWaitingForValue, setWaitingForValuePure } from "./App";
 export { defaultKeyboard } from "./api/keyboards";
 export { MessageWrapper } from "./MessageWrapper";
 
 ApartmentPostingWebService.Init();
+KnowledgeScrapingWebService.Init();
+CarPostingWebService.Init();
 
 console.log("Bot started");
 

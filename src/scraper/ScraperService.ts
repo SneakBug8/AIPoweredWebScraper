@@ -11,6 +11,7 @@ import { ScrapeSource } from "./ScrapeSource";
 import { shuffleArray } from "../util/shuffeArray";
 import { TgBotServer } from "../App";
 import { getBrowser, ClosePlaywrightBrowser } from "./PlaywrightBrowser";
+import { WaitForCloudflareToResolve } from "../util/Cloudflare";
 
 // US2 The scraper does scraping autonomously
 
@@ -64,6 +65,9 @@ async function ScrapePage(url: string, source: ScrapeSource) {
       throw new Error("Error opening the page: " + hasEncounteredError);
     }
 
+    // Let dynamic content and the Cloudflare check (if any) resolve before extracting
+    await WaitForCloudflareToResolve(page);
+
     // US2AC13 When the page returns 404 Not Found, it is skipped and its record deleted
     try {
       const statusCode = await page.evaluate(
@@ -79,10 +83,53 @@ async function ScrapePage(url: string, source: ScrapeSource) {
         //  console.log(`Deleted scraped page record for ${url}`);
         //}
 
+        // Mark the URL as fetched so it doesn't get re-queued immediately (avoid infinite retry loops)
+        const notFoundUrl = url.replace(/\/+$/, "");
+        let rec = await ScrapedPageRecordRepository.GetWithURL(notFoundUrl);
+        if (rec) {
+          rec.LAST_FETCHED = MIS_DT.GetExact();
+          await ScrapedPageRecordRepository.Update(rec);
+        }
+        else {
+          const nr = new ScrapedPageRecord();
+          nr.URL = notFoundUrl;
+          nr.LAST_FETCHED = MIS_DT.GetExact();
+          await ScrapedPageRecordRepository.Insert(nr);
+        }
+        if (notFoundUrl !== url) {
+          let rawRec = await ScrapedPageRecordRepository.GetWithURL(url);
+          if (rawRec) {
+            rawRec.LAST_FETCHED = MIS_DT.GetExact();
+            await ScrapedPageRecordRepository.Update(rawRec);
+          }
+        }
+
         return null;
       }
       else if (statusCode !== 200) {
         console.log(`Page ${url} returned ${statusCode} code, skipping`);
+
+        // Mark the URL as fetched so it doesn't get re-queued immediately (avoid infinite retry loops)
+        const notFoundUrl = url.replace(/\/+$/, "");
+        let rec = await ScrapedPageRecordRepository.GetWithURL(notFoundUrl);
+        if (rec) {
+          rec.LAST_FETCHED = MIS_DT.GetExact();
+          await ScrapedPageRecordRepository.Update(rec);
+        }
+        else {
+          const nr = new ScrapedPageRecord();
+          nr.URL = notFoundUrl;
+          nr.LAST_FETCHED = MIS_DT.GetExact();
+          await ScrapedPageRecordRepository.Insert(nr);
+        }
+        if (notFoundUrl !== url) {
+          let rawRec = await ScrapedPageRecordRepository.GetWithURL(url);
+          if (rawRec) {
+            rawRec.LAST_FETCHED = MIS_DT.GetExact();
+            await ScrapedPageRecordRepository.Update(rawRec);
+          }
+        }
+
         return null;
       }
     }
@@ -123,8 +170,9 @@ async function ScrapePage(url: string, source: ScrapeSource) {
       const URLsQueuePrev = (await ScrapedPageRecordRepository.GetScrapingQueueURLs()).length;
 
       // Read every href in one synchronous in-page pass so the links never go stale.
+      // Use the resolved `a.href` property so relative hrefs become absolute URLs.
       const URLshrefs = await page.evaluate(
-        () => Array.from(document.querySelectorAll('a[href]'), a => a.getAttribute("href"))
+        () => Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href]'), a => a.href)
       );
 
       for (const href1 of URLshrefs) {
@@ -184,7 +232,8 @@ async function ScrapePage(url: string, source: ScrapeSource) {
     }
 
     // Preliminary exit for pages that aren't saved
-    if (!url.includes(source.categoryUrl) || !await source.filter(page)) {
+    // Compare slash-stripped URLs so trailing-slash category URLs still match
+    if (!url.replace(/\/+$/, "").includes(source.categoryUrl.replace(/\/+$/, "")) || !await source.filter(page)) {
       return record;
     }
 

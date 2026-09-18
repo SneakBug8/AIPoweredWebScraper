@@ -12,3 +12,4 @@ builds/
 builds/*/node_modules
 builds/*
 *.tsbuildinfo
+.playwright-mcp/

@@ -15,6 +15,13 @@ function reply(msg: MessageWrapper, text: string) {
   msg.reply(text);
 }
 
+function Report(text: string, message?: MessageWrapper) {
+  console.log(`[CarPostingService] ${text}`);
+  if (message) {
+    message.reply(text);
+  }
+}
+
 async function ExtractFields(record: ScrapedPageRecord, content: string, model = 'openai/gpt-oss-20b') {
   // Filter out non-single car pages
   const url = record.URL;
@@ -104,12 +111,16 @@ async function ExtractFields(record: ScrapedPageRecord, content: string, model =
 
 let ServiceBusy = false;
 
-async function ExtractAllFields(message: MessageWrapper) {
+export function IsFieldExtractionBusy() {
+  return ServiceBusy;
+}
+
+export async function ExtractAllFields(message?: MessageWrapper) {
 
   let count = 0;
 
   if (ServiceBusy) {
-    message.reply("Field extraction already in progress");
+    Report("Field extraction already in progress", message);
     return;
   }
 
@@ -152,7 +163,7 @@ async function ExtractAllFields(message: MessageWrapper) {
   }
 
   ServiceBusy = false;
-  reply(message, `Extracted fields from ${count} Markdown files`);
+  Report(`Extracted fields from ${count} Markdown files`, message);
 }
 
 // US1 User initiates scraping with /scrape command

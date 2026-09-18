@@ -13,6 +13,7 @@ import { MarkdownHelper } from "./util/MarkdownHelper";
 import { ProcessCarScraper } from "./carpostings/CarPostingService";
 import { ProcessJobPosting } from "./jobpostings/JobPostingService";
 import { ProcessApartmentPostings } from "./apartments/ApartmentPostingService";
+import { ProcessKnowledgeScraping } from "./knowledgescraping/KnowledgeScrapingService";
 
 let waitingCallback: ((message: MessageWrapper) => any) | null = null;
 
@@ -136,6 +137,7 @@ class App {
                 ProcessCarScraper,
                 ProcessJobPosting,
                 ProcessApartmentPostings,
+                ProcessKnowledgeScraping,
                 ProcessBackup,
             ];
 

@@ -106,6 +106,17 @@ export const ApartmentCianSource: ScrapeSource = {
     }
 };
 
+export const KnowledgeIIBASource: ScrapeSource = {
+    folderName: "iiba",
+    initialURLs: ["https://www.iiba.org/business-analysis-blogs/"],
+    categoryUrl: "https://www.iiba.org/business-analysis-blogs/",
+    rootElementSelectors: ["main", "article"],
+    unwantedElementsSelectors: ["header", 'a:has(>img)', 'img', "nav", "footer", "form", "iframe", "svg", ".breadcrumb", ".share", ".related-posts", ".related-posts-wrap"],
+    isBusy: false,
+    minInterval: 5000,
+    filter: async (x) => true
+};
+
 // Since Cian has pagination and its contents change rapidly, add some pages into initial scraping queue
 function expandCian() {
     const acscopy = [...ApartmentCianSource.initialURLs];

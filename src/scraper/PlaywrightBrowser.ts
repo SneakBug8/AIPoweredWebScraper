@@ -33,6 +33,8 @@ export async function getBrowser(): Promise<Browser> {
                 }
             } catch (e) { /* ignore */ }
             browser = await chromium.launch({ headless: Config.isProduction() });
+            //browser = await chromium.connectOverCDP({endpointURL: 'ws://127.0.0.1:9222'});
+
             console.log("[PlaywrightBrowser] Chromium launched");
         })().finally(() => { browserLockPromise = null; });
     }
