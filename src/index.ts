@@ -3,10 +3,13 @@ dotenv.config();
 
 import { Config } from "./config";
 import { TgBotServer } from "./App";
+import { ApartmentPostingWebService } from "./apartments/ApartmentPostingWebService";
 
 export { setWaitingForValue, setWaitingForValuePure } from "./App";
 export { defaultKeyboard } from "./api/keyboards";
 export { MessageWrapper } from "./MessageWrapper";
+
+ApartmentPostingWebService.Init();
 
 console.log("Bot started");
 

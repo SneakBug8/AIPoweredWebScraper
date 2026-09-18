@@ -76,7 +76,11 @@ for (let i = 2; i < 240; i++) {
 export const ApartmentCianSource: ScrapeSource = {
     folderName: "cian",
     initialURLs: ["https://www.cian.ru/cat.php?currency=2&deal_type=sale&engine_version=2&flat_share=2&maxprice=10000000&mintarea=30&offer_type=flat&region=1",
-        "https://lyubertsy.cian.ru/cat.php?currency=2&deal_type=sale&engine_version=2&flat_share=2&maxprice=10000000&mintarea=30&offer_type=flat&region=175231"
+        "https://lyubertsy.cian.ru/cat.php?currency=2&deal_type=sale&engine_version=2&flat_share=2&maxprice=10000000&mintarea=30&offer_type=flat&region=175231",
+        "https://www.cian.ru/cat.php?currency=2&deal_type=sale&engine_version=2&flat_share=2&include_new_moscow=0&m2=1&maxprice=200000&maxtarea=60&mintarea=30&offer_type=flat&only_flat=1&region=1",
+        "https://www.cian.ru/cat.php?currency=2&deal_type=sale&engine_version=2&flat_share=2&include_new_moscow=0&m2=1&maxprice=250000&maxtarea=50&mintarea=30&offer_type=flat&only_flat=1&region=1",
+        "https://www.cian.ru/cat.php/?currency=2&deal_type=sale&engine_version=2&flat_share=2&maxprice=10000000&mintarea=30&offer_type=flat&region=4750",
+        "https://ivanovo.cian.ru/cat.php?currency=2&deal_type=sale&engine_version=2&flat_share=2&maxprice=10000000&mintarea=30&offer_type=flat&region=4767"
     ],
     categoryUrl: "https://www.cian.ru/sale/flat/",
     rootElementSelectors: ["#frontend-offer-card"],

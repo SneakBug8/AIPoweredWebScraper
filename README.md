@@ -1,36 +1,86 @@
-# Kate AI Secretary: The Next-Generation Intelligence Hub
+# CarPricesAnalysis
 
-**Kate AI Secretary** is a sophisticated, all-in-one assistant designed to bridge the gap between the chaotic web and structured intelligence. By combining advanced automation, high-speed LLMs, and resilient infrastructure, Kate transforms how you discover, extract, and preserve information.
+CarPricesAnalysis is a stealth scraping system for car, apartment, and job postings. It crawls public sale websites, extracts structured data with AI, and stores everything in a local SQLite database. It operates without manual intervention.
 
-## 🚀 Key Capabilities
+## What the System Does
 
-### 🌐 Autonomous AI-Driven Intelligence
-Kate doesn't just scrape; she *understands*. Utilizing Selenium-based automation and the lightning-fast Groq LLM engine, the system autonomously navigates complex websites, filters relevant content, and extracts structured data with human-like precision. Whether it's car sale postings or market trends, Kate handles the layout changes that break traditional tools.
+- Scrapes car sale websites (kentavar.bg, auto.bg).
+- Scrapes apartment sale websites (cian.ru).
+- Scrapes job vacancy websites (beeline.ru, group.bnpparibas).
+- Converts saved pages from HTML to Markdown.
+- Extracts structured fields (price, model, year, area, and more) with an AI model.
+- Stores all data in local SQLite databases.
+- Resumes interrupted work automatically from its saved state.
 
-### 🛡️ Resilient Data Sovereignty
-Your data is yours. Kate operates with a privacy-first mindset, utilizing a portable SQLite backend and a custom backup engine that offloads your intelligence hub to secure, remote FTP storage. No cloud dependencies, no vendor lock-in—just pure, reliable data persistence.
+## Stealth Capabilities
 
-### ⚡ Seamless Multi-Channel Control
-Interact with your intelligence hub wherever you are. Use the elegant Telegram Bot interface for on-the-go commands and instant notifications, or switch to the secure Web Management Dashboard for deep-dive data analysis and configuration.
+The system is designed to operate quietly and to avoid detection:
 
-### 🔗 Robust Architectural Integrity
-Built on a foundation of reliability, Kate features:
-- **Intelligent Retries:** Self-healing request logic for flaky networks.
-- **Stateful Scheduling:** Precise, idempotent task execution.
-- **Fluent APIs:** A developer-friendly core that’s built for extensibility.
+- **Isolated browser contexts.** Every request uses a fresh browser context with no leftover cookies. The system leaves no usable session between pages.
+- **Randomized delays.** The system waits a random period between requests (1 to 16 seconds by default). This simulates human reading speed.
+- **Retry with backoff.** A failed page load is retried up to 5 times with delays between attempts.
+- **Targeted link following.** Only links that belong to the target category are followed. Unrelated links are never visited.
+- **Clutter removal.** Ads, images, iframes, forms, and navigation menus are removed from the saved page. Only the meaningful article body is stored.
+- **Struck-through removal.** Sold or removed items (shown with line-through style) are deleted from the saved content.
+- **Infinite scroll handling.** The system loads lazy content by scrolling repeatedly until the page height stops changing.
+- **Artificial humanization.** The scraper mixes real browser rendering with DOM manipulation, so saved pages reflect what a human visitor would see.
 
-## 📚 Deep Dive Documentation
+## Architecture
 
-For a detailed look at the engineering and decision-making behind Kate, explore our comprehensive service documentation:
+The system has these main parts:
 
-- **[AuthService](docs/AuthService.md)** - Secure, multi-tiered access control.
-- **[ScraperService](docs/ScraperService.md)** - The AI-powered heart of the system.
-- **[BackupService](docs/BackupService.md)** - Off-site reliability and data safety.
-- **[DatabaseService](docs/DatabaseService.md)** - Portable, lightweight SQL persistence.
-- **[WebApiService](docs/WebApiService.md)** - Centralized web management.
-- **[TelegramBotService](docs/TelegramBotService.md)** - Conversational command & control.
-- **[Core Utilities](docs/UtilityServices.md)** - The building blocks of reliability.
+- `src/scraper/` — the Playwright scraping engine, web source definitions, and the page record repository.
+- `src/apartments/` — apartment posting model and the AI field extraction service.
+- `src/carpostings/` — car posting model and the AI field extraction service.
+- `src/jobpostings/` — job vacancy scraping entry point.
+- `src/backup/` — periodic ZIP archive creation and FTP upload.
+- `src/api/` — the Telegram and Groq API integrations, and the Express web UI.
+- `src/util/` — shared helpers (scheduling, delays, time, and storage).
+- `docs/` — detailed documentation for each service.
 
----
+## Quick Start
 
-*Kate AI Secretary: Turning the noise of the web into the signal for your success.*
+1. Install dependencies.
+
+   ```
+   npm install
+   ```
+
+2. Install the Playwright browser.
+
+   ```
+   npx playwright install firefox
+   ```
+
+3. Copy the environment template to `.env` and fill in your values.
+
+4. Start the system.
+
+   ```
+   npm run
+   ```
+
+## Commands
+
+The system accepts commands through Telegram and through the built-in web UI.
+
+- `/scrape_kentavar` — scrape the kentavar.bg car listings.
+- `/scrape_autobg` — scrape the auto.bg car listings.
+- `/scrape_cian` — scrape the cian.ru apartment listings.
+- `/scrape_beeline` — scrape the beeline.ru job vacancies.
+- `/convert_to_md` — convert saved HTML pages to Markdown.
+- `/extract_cars` — extract structured car data with the AI model.
+- `/extract_apartments` — extract structured apartment data with the AI model.
+- `/backup force` — create and upload a backup archive immediately.
+
+## Web UI
+
+A password-protected dashboard is available at `http://localhost:PORT/apartments`. The dashboard shows system health and database statistics. It provides buttons for CIAN scraping and apartment field extraction without Telegram.
+
+## Data Storage
+
+- `data/db.db` — main SQLite database for scraped pages and car postings.
+- `data/apartments.db` — separate SQLite database for apartment postings.
+- `data/<source>/` — saved HTML files for each source.
+- `data/md/` — converted Markdown files.
+- `backup.zip` — backup archive uploaded to the configured FTP server.

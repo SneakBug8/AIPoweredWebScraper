@@ -79,6 +79,7 @@ async function ExtractFields(record: ScrapedPageRecord, content: string, model =
   //US7AC4 Scraper updates postings coming from the same source
   const existing_record = await ApartmentPostingRepository.GetWithSource(url);
   if (existing_record) {
+    existing_record.city = fields?.city;
     existing_record.subwayStation = fields?.subwayStation;
     existing_record.subwayDistance = fields?.subwayDistance;
     existing_record.transportAvailabiity = fields?.transportAvailabiity;
@@ -93,6 +94,7 @@ async function ExtractFields(record: ScrapedPageRecord, content: string, model =
   }
   else {
     const posting = new ApartmentPosting();
+    posting.city = fields?.city;
     posting.subwayStation = fields?.subwayStation;
     posting.subwayDistance = fields?.subwayDistance;
     posting.transportAvailabiity = fields?.transportAvailabiity;
@@ -136,12 +138,23 @@ async function ProcessRecords(records: ScrapedPageRecord[]) {
 }
 let ServiceBusy = false;
 
-async function ExtractAllFields(message: MessageWrapper) {
+export function IsFieldExtractionBusy() {
+  return ServiceBusy;
+}
+
+function Report(text: string, message?: MessageWrapper) {
+  console.log(`[ApartmentPostingService] ${text}`);
+  if (message) {
+    message.reply(text);
+  }
+}
+
+export async function ExtractAllFields(message?: MessageWrapper) {
 
   let count = 0;
 
   if (ServiceBusy) {
-    message.reply("Field extraction already in progress");
+    Report("Field extraction already in progress", message);
     return;
   }
 
@@ -164,5 +177,5 @@ async function ExtractAllFields(message: MessageWrapper) {
   count += await ProcessRecords(existingrecords);
 
   ServiceBusy = false;
-  message.reply(`Extracted fields from ${count} Markdown files`);
+  Report(`Extracted fields from ${count} Markdown files`, message);
 }

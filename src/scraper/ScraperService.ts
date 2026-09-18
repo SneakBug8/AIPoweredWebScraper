@@ -124,30 +124,35 @@ async function ScrapePage(url: string, source: ScrapeSource) {
 
       const linkElements = await page.locator('a').all();
       for (const element of linkElements) {
-        const href1 = await element.getAttribute("href");
-        if (!href1)
-          continue;
-        const href2 = href1.split("#")[0]; // Remove unwanted link clutter
-        const href = href2.split("?")[0];
+        try {
+          const href1 = await element.getAttribute("href");
+          if (!href1)
+            continue;
+          const href2 = href1.split("#")[0]; // Remove unwanted link clutter
+          const href = href2.split("?")[0];
 
-        if (href.endsWith(".pdf")) {
-          continue;
-        }
-
-        if (href &&
-          (href.includes(source.categoryUrl) || urlInArrayPartial(href, source.initialURLs))
-          && !href.includes("sms:") && !href.includes("tel:")
-          && !href.includes("viber:") && !href.includes("about:")) {
-          const link_in_the_db = await ScrapedPageRecordRepository.GetWithURL(href);
-
-          // console.log("Found link on the page", href, "visited:", !!link_in_the_db);
-
-          if (!link_in_the_db) {
-            // Save new link to the DB
-            const linked_page_record = new ScrapedPageRecord();
-            linked_page_record.URL = href;
-            await ScrapedPageRecordRepository.Insert(linked_page_record);
+          if (href.endsWith(".pdf")) {
+            continue;
           }
+
+          if (href &&
+            (href.includes(source.categoryUrl) || urlInArrayPartial(href, source.initialURLs))
+            && !href.includes("sms:") && !href.includes("tel:")
+            && !href.includes("viber:") && !href.includes("about:")) {
+            const link_in_the_db = await ScrapedPageRecordRepository.GetWithURL(href);
+
+            // console.log("Found link on the page", href, "visited:", !!link_in_the_db);
+
+            if (!link_in_the_db) {
+              // Save new link to the DB
+              const linked_page_record = new ScrapedPageRecord();
+              linked_page_record.URL = href;
+              await ScrapedPageRecordRepository.Insert(linked_page_record);
+            }
+          }
+        }
+        catch (e) {
+          console.error(e);
         }
       }
 

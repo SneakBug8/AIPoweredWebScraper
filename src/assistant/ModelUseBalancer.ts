@@ -53,7 +53,7 @@ export const GroqGPTModelOption: ModelOption =
     Wrapper: GroqWrapper,        // "openai/gpt-oss-20b" (default)
     SupportsTools: true,
     SupportsStructuredResponse: true,
-    LengthLimit: 7500,
+    LengthLimit: 8000,
     TPM: 8000,
     RPM: 30,
     TPS: 160,
@@ -65,7 +65,7 @@ export const GroqGPTBigModelOption: ModelOption =
     Wrapper: GroqBigWrapper,     // "openai/gpt-oss-120b"
     SupportsTools: true,
     SupportsStructuredResponse: true,
-    LengthLimit: 7500,
+    LengthLimit: 8000,
     TPM: 8000,
     RPM: 30,
     TPS: 150,
