@@ -14,6 +14,7 @@ import { ProcessCarScraper } from "./carpostings/CarPostingService";
 import { ProcessJobPosting } from "./jobpostings/JobPostingService";
 import { ProcessApartmentPostings } from "./apartments/ApartmentPostingService";
 import { ProcessKnowledgeScraping } from "./knowledgescraping/KnowledgeScrapingService";
+import { ProcessMcKinseyScraping } from "./knowledgescraping/McKinseyScrapingService";
 
 let waitingCallback: ((message: MessageWrapper) => any) | null = null;
 
@@ -138,6 +139,7 @@ class App {
                 ProcessJobPosting,
                 ProcessApartmentPostings,
                 ProcessKnowledgeScraping,
+                ProcessMcKinseyScraping,
                 ProcessBackup,
             ];
 

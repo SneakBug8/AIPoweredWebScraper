@@ -117,6 +117,25 @@ export const KnowledgeIIBASource: ScrapeSource = {
     filter: async (x) => true
 };
 
+export const McKinseyInsightsSource: ScrapeSource = {
+    folderName: "mckinseyinsights",
+    initialURLs: ["https://www.mckinsey.com/featured-insights"],
+    categoryUrl: "https://www.mckinsey.com/",
+    rootElementSelectors: ['[data-layer-region="article-body"]', "main", ".mck-o-container--outer", ".tbl_main", ".email-container", "body"],
+    unwantedElementsSelectors: ['a:has(>img)', 'img', '.contact', "style", "script"],
+    isBusy: false,
+    minInterval: 5000,
+    filter: async (page) => {
+        try {
+            const content = await page.evaluate(() => (document.body ? (document.body.innerText || "").toLowerCase() : ""));
+            return ["report", "article", "blog post", "charts", "case study"].some((kw) => content.includes(kw));
+        }
+        catch (e) {
+            return false;
+        }
+    }
+};
+
 // Since Cian has pagination and its contents change rapidly, add some pages into initial scraping queue
 function expandCian() {
     const acscopy = [...ApartmentCianSource.initialURLs];

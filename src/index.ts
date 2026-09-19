@@ -5,6 +5,7 @@ import { Config } from "./config";
 import { TgBotServer } from "./App";
 import { ApartmentPostingWebService } from "./apartments/ApartmentPostingWebService";
 import { KnowledgeScrapingWebService } from "./knowledgescraping/KnowledgeScrapingWebService";
+import { McKinseyScrapingWebService } from "./knowledgescraping/McKinseyScrapingWebService";
 import { CarPostingWebService } from "./carpostings/CarPostingWebService";
 
 export { setWaitingForValue, setWaitingForValuePure } from "./App";
@@ -13,6 +14,7 @@ export { MessageWrapper } from "./MessageWrapper";
 
 ApartmentPostingWebService.Init();
 KnowledgeScrapingWebService.Init();
+McKinseyScrapingWebService.Init();
 CarPostingWebService.Init();
 
 console.log("Bot started");
